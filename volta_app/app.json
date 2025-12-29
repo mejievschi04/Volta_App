@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "volta_app",
+    "slug": "volta_app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "scheme": "voltaapp",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.volta.app",
+      "buildNumber": "1.0.0"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "package": "com.volta.app"
+    },
+    "web": {
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-notifications",
+        {
+          "color": "#FFEE00",
+          "sounds": []
+        }
+      ]
+    ]
+  }
+}
