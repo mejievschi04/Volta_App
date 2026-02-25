@@ -2,18 +2,22 @@ import React, { useEffect, useRef, useState, useContext, useCallback, useMemo } 
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   NativeSyntheticEvent, NativeScrollEvent,
-  Image, ActivityIndicator, Animated, Platform, Linking, Modal, Alert
+  Image, ActivityIndicator, Animated, Platform, Linking, Modal, Alert, RefreshControl
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { openBrowserAsync, WebBrowserPresentationStyle } from 'expo-web-browser';
-import { apiClient } from '../lib/apiClient';
-import { UserContext } from './context/UserContext';
-import { ThemeContext } from './context/ThemeContext';
-import { getColors } from './components/theme';
-import Screen from './components/Screen';
-import { useResponsive, responsiveSize, responsiveWidth, responsiveHeight } from './hooks/useResponsive';
+import { UserContext } from './_context/UserContext';
+import { ThemeContext } from './_context/ThemeContext';
+import { getColors, spacing } from './_components/theme';
+import Screen from './_components/Screen';
+import { useResponsive, responsiveSize, responsiveWidth, responsiveHeight } from './_hooks/useResponsive';
+import { usePromotionsHome } from '../hooks/usePromotions';
+import { useMessages } from '../hooks/useMessages';
+import ApiErrorView from './_components/ApiErrorView';
+import { SkeletonPromoSlide } from './_components/Skeleton';
+import { resolveImageUrl } from '../lib/apiClient';
 import * as Notifications from 'expo-notifications';
 
 type Slide = { id: string; title: string; image_url: string; deadline: string; link?: string; created_at?: string };
@@ -30,27 +34,48 @@ export default function Home() {
   // Responsive dimensions
   const { width, height, isSmallScreen, isTablet, scale } = useResponsive();
   
-  // Calculate responsive dimensions
-  const CONTAINER_PADDING = 0;
-  const MAX_SLIDE_HEIGHT = responsiveHeight(55); // 55% of screen height, max 450px
-  const SLIDE_HEIGHT = Math.min(responsiveHeight(55), responsiveSize(450, scale));
-  const slideWidth = width; // Full width, already responsive
-  const SLIDE_WIDTH_WITH_PADDING = width - (responsiveWidth(5) * 2); // Account for container padding
+  // Slideshow full width of screen (no side padding)
+  const slideWidth = width;
+  const CARD_WIDTH = width;
+  const CARD_RADIUS = 0; // edge-to-edge, no rounded corners
+  const SLIDE_HEIGHT = Math.round(width); // square banner
   
   // Get responsive styles
   const responsiveStyles = useMemo(() => getStyles(isSmallScreen, scale), [isSmallScreen, scale]);
 
-  const [slides, setSlides] = useState<Slide[]>([]);
   const [active, setActive] = useState(0);
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0 });
-  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const [newMessageNotification, setNewMessageNotification] = useState<{ message: string; id: string | number } | null>(null);
   const lastMessageIdRef = useRef<string | number | null>(null);
   const notificationAnim = useRef(new Animated.Value(-100)).current;
   const scrollRef = useRef<ScrollView | null>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slidesLenRef = useRef(0);
+  const lastInteractionTsRef = useRef(0);
+
+  const { data: promotionsData, isLoading: loading, isError: promotionsError, error: promotionsErrorObj, refetch: refetchPromo } = usePromotionsHome();
+  const { data: messagesData, refetch: refetchMessages } = useMessages(user?.id ?? null, { refetchInterval: 20000 });
+
+  const slides = useMemo(() => {
+    const promotionsArray = Array.isArray(promotionsData) ? promotionsData : [];
+    const mapped = promotionsArray.map((promo: any) => ({
+      ...promo,
+      image_url: promo.image_home_url || promo.image_url,
+    }));
+    const now = Date.now();
+    return mapped
+      .filter((p: any) => new Date(p.deadline).getTime() > now)
+      .sort((a: any, b: any) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime());
+  }, [promotionsData]);
+
   const currentSlide = slides[active] ?? null;
+  const activeRef = useRef(0);
+
+  const markInteraction = useCallback(() => {
+    lastInteractionTsRef.current = Date.now();
+  }, []);
   const calcLeft = useCallback((endDate: string) => {
     const diff = new Date(endDate).getTime() - Date.now();
     if (diff <= 0) return { days: 0, hours: 0, minutes: 0 };
@@ -66,83 +91,15 @@ export default function Home() {
     return d.toLocaleDateString('ro-RO', { day: '2-digit', month: 'short', year: 'numeric' });
   }, []);
 
-  const fetchPromotions = useCallback(async () => {
-    try {
-      setLoading(true);
-      const { data, error } = await apiClient.getPromotionsHome();
-
-      if (error) throw new Error(error);
-      
-      console.log('[Home] Promoții primite:', data);
-      const promotionsArray = Array.isArray(data) ? data : [];
-      console.log('[Home] Image Home URLs:', promotionsArray.map((p: any) => p.image_home_url));
-      
-      // Map image_home_url to image_url for Home page slides
-      const mappedPromotions = promotionsArray.map((promo: any) => ({
-        ...promo,
-        image_url: promo.image_home_url || promo.image_url
-      }));
-      
-      // Filter out all expired promotions and sort active ones by deadline
-      const now = Date.now();
-      const filteredAndSorted = mappedPromotions
-        .filter((promo: any) => {
-          const deadlineTime = new Date(promo.deadline).getTime();
-          return deadlineTime > now; // Keep only active (not expired) promotions
-        })
-        .sort((a: any, b: any) => {
-          const aDeadline = new Date(a.deadline).getTime();
-          const bDeadline = new Date(b.deadline).getTime();
-          // Sort by deadline (soonest first)
-          return aDeadline - bDeadline;
-        });
-      
-      console.log('[Home] Promoții filtrate și sortate:', filteredAndSorted);
-      console.log('[Home] Image URLs finale:', filteredAndSorted.map((p: any) => p.image_url));
-      
-      setSlides(filteredAndSorted);
-    } catch (err) {
-      console.error('Eroare la preluarea promoțiilor:', err);
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (!loading) {
       Animated.timing(fadeAnim, {
         toValue: 1,
         duration: 600,
         useNativeDriver: true,
       }).start();
     }
-  }, [fadeAnim]);
-
-  useEffect(() => {
-    fetchPromotions();
-
-    // Configure notifications
-    Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-      }),
-    });
-    
-    // Request permissions on mount
-    (async () => {
-      if (Platform.OS === 'android') {
-        await Notifications.setNotificationChannelAsync('default', {
-          name: 'default',
-          importance: Notifications.AndroidImportance.MAX,
-          vibrationPattern: [0, 250, 250, 250],
-          lightColor: '#FFEE00',
-          sound: 'default',
-        });
-      }
-      
-      const { status } = await Notifications.requestPermissionsAsync();
-      if (status !== 'granted') {
-        console.log('[Home] Permisiuni notificări refuzate');
-      }
-    })();
-  }, [fetchPromotions]);
+  }, [loading, fadeAnim]);
 
   useEffect(() => {
     if (slides.length === 0) return;
@@ -154,6 +111,43 @@ export default function Home() {
 
     return () => clearInterval(timer);
   }, [active, slides]);
+
+  // Keep refs in sync for autoplay
+  useEffect(() => {
+    activeRef.current = active;
+  }, [active]);
+
+  useEffect(() => {
+    slidesLenRef.current = slides.length;
+  }, [slides.length]);
+
+  // Prefetch first images for smoother carousel
+  useEffect(() => {
+    if (!slides.length) return;
+    slides.slice(0, 5).forEach((s) => {
+      const uri = resolveImageUrl(s?.image_url);
+      if (uri) Image.prefetch(uri).catch(() => {});
+    });
+  }, [slides]);
+
+  // Autoplay slideshow (pauses after user interaction)
+  useEffect(() => {
+    if (slides.length < 2) return;
+
+    const AUTOPLAY_INTERVAL_MS = 5000;
+    const PAUSE_AFTER_INTERACTION_MS = 8000;
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      if (now - lastInteractionTsRef.current < PAUSE_AFTER_INTERACTION_MS) return;
+      const len = slidesLenRef.current;
+      if (len < 2) return;
+      const nextIndex = (activeRef.current + 1) % len;
+      goToSlide(nextIndex);
+    }, AUTOPLAY_INTERVAL_MS);
+
+    return () => clearInterval(interval);
+  }, [goToSlide, slides.length]);
 
   const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const page = Math.round(e.nativeEvent.contentOffset.x / slideWidth);
@@ -167,107 +161,78 @@ export default function Home() {
     setActive(clampedIndex);
   }, [slides.length, slideWidth]);
 
+  const goToSlideFromUser = useCallback((index: number) => {
+    markInteraction();
+    goToSlide(index);
+  }, [goToSlide, markInteraction]);
+
   const nextSlide = useCallback(() => {
     if (slides.length === 0) return;
     const nextIndex = (active + 1) % slides.length;
+    markInteraction();
     goToSlide(nextIndex);
-  }, [active, slides.length, goToSlide]);
+  }, [active, slides.length, goToSlide, markInteraction]);
 
   const prevSlide = useCallback(() => {
     if (slides.length === 0) return;
     const prevIndex = (active - 1 + slides.length) % slides.length;
+    markInteraction();
     goToSlide(prevIndex);
-  }, [active, slides.length, goToSlide]);
+  }, [active, slides.length, goToSlide, markInteraction]);
 
   const headerHeight = useMemo(() => isSmallScreen ? responsiveSize(70, scale) : responsiveSize(80, scale), [isSmallScreen, scale]);
 
-  // Load unread messages count
-  const loadUnreadMessagesCount = useCallback(async () => {
-    if (!user?.id) return;
+  useEffect(() => {
+    if (!messagesData || !Array.isArray(messagesData)) return;
+    const unreadCount = messagesData.filter((msg: any) =>
+      msg.is_from_admin === true && (msg.read === false || msg.read === null || !msg.read)
+    ).length;
+    setUnreadMessagesCount(unreadCount);
 
-    try {
-      const { data, error } = await apiClient.getMessages(user.id);
-      
-      if (error) {
-        console.error('[Home] Eroare la încărcarea mesajelor pentru badge:', error);
-        return;
-      }
-
-      if (data && Array.isArray(data)) {
-        // Numără mesajele de la admin care nu sunt citite (read = false sau null)
-        const unreadCount = data.filter((msg: any) => 
-          msg.is_from_admin === true && (msg.read === false || msg.read === null || !msg.read)
-        ).length;
-
-        setUnreadMessagesCount(unreadCount);
-
-        // Detectează mesaje noi pentru notificare
-        if (data.length > 0) {
-          const latestMessage = data[data.length - 1];
-          if (latestMessage.is_from_admin && latestMessage.id !== lastMessageIdRef.current) {
-            // Mesaj nou de la admin
-            if (lastMessageIdRef.current !== null) {
-              // Nu trimitem notificare la prima încărcare
-              const messageText = latestMessage.message || 'Ai primit un mesaj nou';
-              
-              setNewMessageNotification({
-                message: messageText,
-                id: latestMessage.id,
-              });
-              
-              // Trimite notificare push nativă în bara de notificări
-              await Notifications.scheduleNotificationAsync({
-                content: {
-                  title: 'Volta Support',
-                  body: messageText.length > 100 ? messageText.substring(0, 100) + '...' : messageText,
-                  data: { type: 'message', messageId: latestMessage.id },
-                  sound: true,
-                },
-                trigger: null, // Show immediately
-              });
-              
-              // Animație pentru notificare
-              Animated.spring(notificationAnim, {
-                toValue: 0,
-                tension: 65,
-                friction: 8,
-                useNativeDriver: true,
-              }).start();
-
-              // Ascunde notificarea după 5 secunde
-              setTimeout(() => {
-                Animated.timing(notificationAnim, {
-                  toValue: -100,
-                  duration: 300,
-                  useNativeDriver: true,
-                }).start(() => {
-                  setNewMessageNotification(null);
-                });
-              }, 5000);
-            }
-            lastMessageIdRef.current = latestMessage.id;
-          }
+    if (messagesData.length > 0) {
+      const latestMessage = messagesData[messagesData.length - 1];
+      if (latestMessage.is_from_admin && latestMessage.id !== lastMessageIdRef.current) {
+        if (lastMessageIdRef.current !== null) {
+          const messageText = latestMessage.message || 'Ai primit un mesaj nou';
+          setNewMessageNotification({ message: messageText, id: latestMessage.id });
+          Notifications.scheduleNotificationAsync({
+            content: {
+              title: 'Volta Support',
+              body: messageText.length > 100 ? messageText.substring(0, 100) + '...' : messageText,
+              data: { type: 'message', messageId: latestMessage.id },
+              sound: true,
+            },
+            trigger: null,
+          }).catch(() => {});
+          Animated.spring(notificationAnim, {
+            toValue: 0,
+            tension: 65,
+            friction: 8,
+            useNativeDriver: true,
+          }).start();
+          setTimeout(() => {
+            Animated.timing(notificationAnim, {
+              toValue: -100,
+              duration: 300,
+              useNativeDriver: true,
+            }).start(() => {
+              setNewMessageNotification(null);
+            });
+          }, 5000);
         }
+        lastMessageIdRef.current = latestMessage.id;
       }
-    } catch (error) {
-      console.error('[Home] Eroare exception la încărcarea mesajelor:', error);
     }
-  }, [user?.id, router]);
+  }, [messagesData, notificationAnim]);
 
-  // Polling pentru mesaje necitite când ecranul este activ
-  useFocusEffect(
-    useCallback(() => {
-      loadUnreadMessagesCount();
-      
-      const interval = setInterval(() => {
-        if (user?.id) {
-          loadUnreadMessagesCount();
-        }
-      }, 5000); // La fiecare 5 secunde
-
-      return () => clearInterval(interval);
-    }, [user?.id, loadUnreadMessagesCount])
-  );
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([refetchPromo(), refetchMessages()]);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refetchPromo, refetchMessages]);
 
   return (
     <Screen>
@@ -330,527 +295,406 @@ export default function Home() {
           </Animated.View>
         )}
 
-        {/* Modern Header */}
-        {isDark ? (
-          <Animated.View 
-            style={[
-              responsiveStyles.headerRow,
-              { 
-                opacity: fadeAnim,
-                minHeight: headerHeight,
-                borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.surface,
-                borderRadius: 16,
-                overflow: 'hidden',
-              }
-            ]}
-          >
-            <TouchableOpacity 
-              style={responsiveStyles.avatarWrap} 
-              onPress={() => router.push('/Profile')}
-              activeOpacity={0.7}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: responsiveSize(24, scale) }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primaryButton}
+              colors={[colors.primaryButton]}
+              progressBackgroundColor={isDark ? colors.surface : '#FFF'}
+            />
+          }
+          nestedScrollEnabled
+        >
+          {/* Modern Header */}
+          {isDark ? (
+            <Animated.View
+              style={[
+                responsiveStyles.headerRow,
+                {
+                  opacity: fadeAnim,
+                  minHeight: headerHeight,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  backgroundColor: colors.surface,
+                  borderRadius: 16,
+                  overflow: 'hidden',
+                },
+              ]}
+            >
+              <TouchableOpacity
+                style={responsiveStyles.avatarWrap}
+                onPress={() => router.push('/Profile')}
+                activeOpacity={0.7}
+              >
+                <LinearGradient
+                  colors={['#FFEE00', '#FFEE00']}
+                  style={responsiveStyles.avatarGradient}
+                >
+                  <Text style={responsiveStyles.avatarInitial}>{initial}</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+
+              <View style={responsiveStyles.greetingWrap}>
+                <Text
+                  style={[responsiveStyles.helloText, { color: colors.textMuted }]}
+                  numberOfLines={1}
+                >
+                  Salut,
+                </Text>
+                <Text
+                  style={[responsiveStyles.greeting, { color: colors.text }]}
+                  numberOfLines={1}
+                >
+                  {userName}
+                </Text>
+              </View>
+
+              <View style={responsiveStyles.topButtons}>
+                <TouchableOpacity
+                  style={[responsiveStyles.iconBtn, { backgroundColor: colors.surface }]}
+                  onPress={() => router.push('/Notifications')}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="notifications-outline" size={22} color={colors.primaryButton} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[responsiveStyles.iconBtn, { backgroundColor: colors.surface, marginLeft: 8 }]}
+                  onPress={() => router.push('/Settings')}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="settings-outline" size={22} color={colors.primaryButton} />
+                </TouchableOpacity>
+              </View>
+            </Animated.View>
+          ) : (
+            <Animated.View
+              style={[
+                responsiveStyles.headerRow,
+                {
+                  opacity: fadeAnim,
+                  minHeight: headerHeight,
+                  borderWidth: 1,
+                  borderColor: '#FFEE00',
+                  borderRadius: 16,
+                  overflow: 'hidden',
+                },
+              ]}
             >
               <LinearGradient
                 colors={['#FFEE00', '#FFEE00']}
-                style={responsiveStyles.avatarGradient}
-              >
-                <Text style={responsiveStyles.avatarInitial}>{initial}</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-
-            <View style={responsiveStyles.greetingWrap}>
-              <Text 
-                style={[responsiveStyles.helloText, { color: colors.textMuted }]} 
-                numberOfLines={1}
-              >
-                Salut,
-              </Text>
-              <Text 
-                style={[responsiveStyles.greeting, { color: colors.text }]} 
-                numberOfLines={1}
-              >
-                {userName}
-              </Text>
-            </View>
-
-            <View style={responsiveStyles.topButtons}>
-              <TouchableOpacity 
-                style={[responsiveStyles.iconBtn, { backgroundColor: isDark ? colors.surface : '#333' }]} 
-                onPress={() => router.push('/Notifications')}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={StyleSheet.absoluteFill}
+              />
+              <TouchableOpacity
+                style={responsiveStyles.avatarWrap}
+                onPress={() => router.push('/Profile')}
                 activeOpacity={0.7}
               >
-                <Ionicons name="notifications-outline" size={22} color={colors.primaryButton} />
+                <View style={[responsiveStyles.avatarGradient, { backgroundColor: '#000', borderWidth: 1.5, borderColor: '#FFEE00' }]}>
+                  <Text style={[responsiveStyles.avatarInitial, { color: '#FFEE00' }]}>{initial}</Text>
+                </View>
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={[responsiveStyles.iconBtn, { backgroundColor: isDark ? colors.surface : '#333', marginLeft: 8 }]} 
-                onPress={() => router.push('/Settings')}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="settings-outline" size={22} color={colors.primaryButton} />
-              </TouchableOpacity>
-            </View>
-          </Animated.View>
-        ) : (
-          <Animated.View
-            style={[
-              responsiveStyles.headerRow,
-              { 
-                opacity: fadeAnim,
-                minHeight: headerHeight,
-                borderWidth: 1,
-                borderColor: '#FFEE00',
-                borderRadius: 16,
-                overflow: 'hidden',
-              }
-            ]}
-          >
-            <LinearGradient
-              colors={['#FFEE00', '#FFEE00']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={StyleSheet.absoluteFill}
-            />
-            <TouchableOpacity 
-              style={responsiveStyles.avatarWrap} 
-              onPress={() => router.push('/Profile')}
-              activeOpacity={0.7}
-            >
-              <View style={[responsiveStyles.avatarGradient, { backgroundColor: '#000' }]}>
-                <Text style={[responsiveStyles.avatarInitial, { color: '#FFEE00' }]}>{initial}</Text>
-              </View>
-            </TouchableOpacity>
 
-            <View style={responsiveStyles.greetingWrap}>
-              <Text 
-                style={[responsiveStyles.helloText, { color: '#666' }]} 
-                numberOfLines={1}
-              >
-                Salut,
-              </Text>
-              <Text 
-                style={[responsiveStyles.greeting, { color: '#000' }]} 
-                numberOfLines={1}
-              >
-                {userName}
-              </Text>
-            </View>
-
-            <View style={responsiveStyles.topButtons}>
-              <TouchableOpacity 
-                style={[responsiveStyles.iconBtn, { backgroundColor: '#000' }]} 
-                onPress={() => router.push('/Notifications')}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="notifications-outline" size={22} color="#FFEE00" />
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[responsiveStyles.iconBtn, { backgroundColor: '#000', marginLeft: 8 }]} 
-                onPress={() => router.push('/Settings')}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="settings-outline" size={22} color="#FFEE00" />
-              </TouchableOpacity>
-            </View>
-          </Animated.View>
-        )}
-
-        {/* Modern Slider */}
-        {isDark ? (
-          <Animated.View 
-            style={[
-              responsiveStyles.slideshowWrap,
-              { 
-                opacity: fadeAnim,
-                minHeight: SLIDE_HEIGHT,
-                overflow: 'hidden',
-                width: '100%',
-                alignSelf: 'center',
-              }
-            ]}
-          >
-          {loading ? (
-            <View style={responsiveStyles.loadingContainer}>
-              <ActivityIndicator color={colors.text} size="large" />
-              <Text style={[responsiveStyles.loadingText, { color: colors.text }]}>
-                Se încarcă promoțiile...
-              </Text>
-            </View>
-          ) : slides.length === 0 ? (
-            <View style={responsiveStyles.emptyContainer}>
-              <Ionicons name="pricetag-outline" size={48} color={colors.textMuted} />
-              <Text style={[responsiveStyles.emptyText, { color: colors.textMuted }]}>
-                Nu există promoții active momentan.
-              </Text>
-            </View>
-          ) : (
-            <>
-              <View style={{ position: 'relative', width: '100%', height: SLIDE_HEIGHT }}>
-                <ScrollView
-                  horizontal
-                  pagingEnabled
-                  scrollEnabled={false}
-                  showsHorizontalScrollIndicator={false}
-                  onScroll={onScroll}
-                  scrollEventThrottle={16}
-                  ref={scrollRef}
-                  decelerationRate="fast"
-                  snapToInterval={slideWidth}
-                  snapToAlignment="center"
-                  contentContainerStyle={{ alignItems: 'center' }}
+              <View style={responsiveStyles.greetingWrap}>
+                <Text
+                  style={[responsiveStyles.helloText, { color: '#666' }]}
+                  numberOfLines={1}
                 >
-                  {slides.map((s, i) => (
-                    <TouchableOpacity
-                      key={s.id}
-                      activeOpacity={0.9}
-                      onPress={async () => {
-                        if (s.link) {
-                          try {
-                            await openBrowserAsync(s.link, {
-                              presentationStyle: WebBrowserPresentationStyle.AUTOMATIC,
-                            });
-                          } catch (error) {
-                            console.error('Eroare la deschiderea linkului:', error);
-                          }
-                        }
-                      }}
-                      style={[
-                        styles.slide, 
-                        { 
-                          width: slideWidth, 
-                          height: SLIDE_HEIGHT,
-                          alignSelf: 'center',
-                        }
-                      ]}
-                    >
-                      <View style={styles.imageWrap}>
-                        <Image
-                          source={{ uri: s.image_url }}
-                          style={{ width: '100%', height: '100%' }}
-                          resizeMode="contain"
-                        />
-                        <LinearGradient
-                          colors={['transparent', 'rgba(0,0,0,0.7)']}
-                          style={styles.imageGradient}
-                        />
-                        <View style={styles.slideOverlay} />
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-                {currentSlide && (() => {
-                  const tl = calcLeft(currentSlide.deadline);
-                  const total = tl.days + tl.hours + tl.minutes;
-                  if (total <= 0) return null;
-                  
-                  return (
-                    <View style={responsiveStyles.timerBottomRight}>
-                      <View style={responsiveStyles.timerContainer}>
-                        <View style={responsiveStyles.timerContent}>
-                          {/* Day */}
-                          <View style={responsiveStyles.timerUnit}>
-                            <View style={responsiveStyles.timerBox}>
-                              <View style={responsiveStyles.timerNumberLine} />
-                              <Text style={responsiveStyles.timerNumber}>
-                                {String(tl.days).padStart(2, '0')}
-                              </Text>
-                            </View>
-                            <Text style={responsiveStyles.timerLabel}>Zi</Text>
-                          </View>
-                          
-                          {/* Separator */}
-                          <View style={responsiveStyles.timerSeparator}>
-                            <View style={responsiveStyles.timerDot} />
-                            <View style={responsiveStyles.timerDot} />
-                          </View>
-                          
-                          {/* Hours */}
-                          <View style={responsiveStyles.timerUnit}>
-                            <View style={responsiveStyles.timerBox}>
-                              <View style={responsiveStyles.timerNumberLine} />
-                              <Text style={responsiveStyles.timerNumber}>
-                                {String(tl.hours).padStart(2, '0')}
-                              </Text>
-                            </View>
-                            <Text style={responsiveStyles.timerLabel}>Ore</Text>
-                          </View>
-                          
-                          {/* Separator */}
-                          <View style={responsiveStyles.timerSeparator}>
-                            <View style={responsiveStyles.timerDot} />
-                            <View style={responsiveStyles.timerDot} />
-                          </View>
-                          
-                          {/* Minutes */}
-                          <View style={responsiveStyles.timerUnit}>
-                            <View style={responsiveStyles.timerBox}>
-                              <View style={responsiveStyles.timerNumberLine} />
-                              <Text style={responsiveStyles.timerNumber}>
-                                {String(tl.minutes).padStart(2, '0')}
-                              </Text>
-                            </View>
-                            <Text style={responsiveStyles.timerLabel}>Min</Text>
-                          </View>
-                        </View>
-                      </View>
-                    </View>
-                  );
-                })()}
+                  Salut,
+                </Text>
+                <Text
+                  style={[responsiveStyles.greeting, { color: '#000' }]}
+                  numberOfLines={1}
+                >
+                  {userName}
+                </Text>
               </View>
 
-              {/* Slider Controls */}
-              <View style={responsiveStyles.sliderControls}>
-                <TouchableOpacity 
-                  style={[responsiveStyles.sliderBtn, styles.sliderBtnDark]}
-                  onPress={prevSlide}
-                  activeOpacity={0.8}
+              <View style={responsiveStyles.topButtons}>
+                <TouchableOpacity
+                  style={[responsiveStyles.iconBtn, { backgroundColor: '#000' }]}
+                  onPress={() => router.push('/Notifications')}
+                  activeOpacity={0.7}
                 >
-                  <Ionicons name="chevron-back" size={20} color="#FFEE00" />
+                  <Ionicons name="notifications-outline" size={22} color="#FFEE00" />
                 </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[responsiveStyles.sliderBtn, styles.sliderBtnDark]}
-                  onPress={nextSlide}
-                  activeOpacity={0.8}
+                <TouchableOpacity
+                  style={[responsiveStyles.iconBtn, { backgroundColor: '#000', marginLeft: 8 }]}
+                  onPress={() => router.push('/Settings')}
+                  activeOpacity={0.7}
                 >
-                  <Ionicons name="chevron-forward" size={16} color="#FFEE00" style={{ opacity: 0.6 }} />
+                  <Ionicons name="settings-outline" size={22} color="#FFEE00" />
                 </TouchableOpacity>
               </View>
-            </>
+            </Animated.View>
           )}
-        </Animated.View>
-        ) : (
-          <Animated.View 
-            style={[
-              responsiveStyles.slideshowWrap,
-              { 
-                opacity: fadeAnim,
-                minHeight: SLIDE_HEIGHT,
-                overflow: 'hidden',
-                width: '100%',
-                alignSelf: 'center',
-              }
-            ]}
+
+          {/* Slideshow + imagine + timer – de la 0, doar inline */}
+          <Animated.View
+            style={{
+              opacity: fadeAnim,
+              marginTop: 28,
+              marginBottom: 16,
+              width: width,
+              marginHorizontal: -spacing.lg,
+              overflow: 'hidden',
+              minHeight: SLIDE_HEIGHT,
+            }}
           >
             {loading ? (
-              <View style={responsiveStyles.loadingContainer}>
-                <ActivityIndicator color={colors.text} size="large" />
-                <Text style={[responsiveStyles.loadingText, { color: colors.text }]}>
-                  Se încarcă promoțiile...
-                </Text>
+              <View style={{ width: slideWidth, height: SLIDE_HEIGHT }}>
+                <SkeletonPromoSlide width={slideWidth} height={SLIDE_HEIGHT} />
+              </View>
+            ) : promotionsError ? (
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 40 }}>
+                <ApiErrorView
+                  message={promotionsErrorObj?.message ?? undefined}
+                  onRetry={() => refetchPromo()}
+                />
               </View>
             ) : slides.length === 0 ? (
-              <View style={responsiveStyles.emptyContainer}>
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 40 }}>
                 <Ionicons name="pricetag-outline" size={48} color={colors.textMuted} />
-                <Text style={[responsiveStyles.emptyText, { color: colors.textMuted }]}>
-                  Nu există promoții active momentan.
-                </Text>
+                <Text style={{ marginTop: 12, fontSize: 15, color: colors.textMuted, textAlign: 'center' }}>Nu există promoții active momentan.</Text>
               </View>
             ) : (
               <>
-                <View style={{ position: 'relative', width: '100%', height: SLIDE_HEIGHT }}>
+                <View style={{ width: width, height: SLIDE_HEIGHT }}>
                   <ScrollView
                     horizontal
                     pagingEnabled
-                    scrollEnabled={false}
+                    scrollEnabled
                     showsHorizontalScrollIndicator={false}
                     onScroll={onScroll}
+                    onScrollBeginDrag={markInteraction}
                     scrollEventThrottle={16}
                     ref={scrollRef}
                     decelerationRate="fast"
                     snapToInterval={slideWidth}
-                    snapToAlignment="center"
-                    contentContainerStyle={{ alignItems: 'center' }}
+                    snapToAlignment="start"
                   >
-                    {slides.map((s, i) => (
-                      <TouchableOpacity
-                        key={s.id}
-                        activeOpacity={0.9}
-                        onPress={async () => {
-                          if (s.link) {
-                            try {
-                              await openBrowserAsync(s.link, {
-                                presentationStyle: WebBrowserPresentationStyle.AUTOMATIC,
-                              });
-                            } catch (error) {
-                              console.error('Eroare la deschiderea linkului:', error);
-                            }
-                          }
-                        }}
-                        style={[
-                          styles.slide, 
-                          { 
-                            width: slideWidth, 
+                    {slides.map((s, i) => {
+                      const tl = i === active ? calcLeft(s.deadline) : null;
+                      const total = tl ? (tl.days + tl.hours + tl.minutes) : 0;
+                      const showTimer = !!tl && total > 0;
+
+                      return (
+                        <View
+                          key={s.id}
+                          style={{
+                            width: slideWidth,
                             height: SLIDE_HEIGHT,
-                            alignSelf: 'center',
-                          }
-                        ]}
-                      >
-                        <View style={styles.imageWrap}>
-                          <Image
-                            source={{ uri: s.image_url }}
-                            style={{ width: '100%', height: '100%' }}
-                            resizeMode="contain"
-                            onError={(error) => {
-                              console.error('[Home] Eroare la încărcarea imaginii:', s.image_url, error.nativeEvent.error);
+                            overflow: 'hidden',
+                            position: 'relative',
+                          }}
+                        >
+                          <TouchableOpacity
+                            activeOpacity={0.9}
+                            onPress={async () => {
+                              if (s.link) {
+                                try {
+                                  await openBrowserAsync(s.link, { presentationStyle: WebBrowserPresentationStyle.AUTOMATIC });
+                                } catch (e) {
+                                  console.error('Eroare link:', e);
+                                }
+                              }
                             }}
-                            onLoad={() => {
-                              console.log('[Home] Imagine încărcată cu succes:', s.image_url);
+                            style={{
+                              position: 'absolute',
+                              left: 0,
+                              top: 0,
+                              width: slideWidth,
+                              height: SLIDE_HEIGHT,
+                              overflow: 'hidden',
                             }}
-                            onLoadStart={() => {
-                              console.log('[Home] Începe încărcarea imaginii:', s.image_url);
-                            }}
-                          />
-                          <LinearGradient
-                            colors={['transparent', 'rgba(0,0,0,0.65)']}
-                            style={styles.imageGradient}
-                          />
+                          >
+                            <Image
+                              source={{ uri: resolveImageUrl(s.image_url) ?? '' }}
+                              style={{ position: 'absolute', left: 0, top: 0, width: slideWidth, height: SLIDE_HEIGHT }}
+                              resizeMode="cover"
+                              onError={(e) => console.error('[Home] Eroare imagine:', s.image_url, e.nativeEvent?.error)}
+                            />
+                            <LinearGradient
+                              colors={['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.75)']}
+                              locations={[0.35, 0.7, 1]}
+                              style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '70%' }}
+                            />
+                          </TouchableOpacity>
+
+                          {showTimer && tl && (
+                            <View
+                              style={{
+                                position: 'absolute',
+                                bottom: 0,
+                                left: 0,
+                                right: 0,
+                                paddingHorizontal: 14,
+                                paddingBottom: 10,
+                                paddingTop: 12,
+                                zIndex: 10,
+                              }}
+                            >
+                              <View
+                                style={{
+                                  width: '100%',
+                                  flexDirection: 'row',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  backgroundColor: 'rgba(0,0,0,0.6)',
+                                  borderRadius: 10,
+                                  paddingVertical: 6,
+                                  paddingHorizontal: 12,
+                                  gap: 4,
+                                  borderWidth: 1,
+                                  borderColor: 'rgba(255,255,255,0.15)',
+                                }}
+                              >
+                                <View style={{ alignItems: 'center', flex: 1 }}>
+                                  <Text style={{ fontSize: 16, fontWeight: '800', color: '#FFEE00' }}>{String(tl.days).padStart(2, '0')}</Text>
+                                  <Text style={{ fontSize: 8, fontWeight: '600', color: 'rgba(255,255,255,0.9)', textTransform: 'uppercase', marginTop: 1 }}>Zile</Text>
+                                </View>
+                                <Text style={{ fontSize: 14, fontWeight: '700', color: 'rgba(255,255,255,0.5)', marginHorizontal: 2 }}>:</Text>
+                                <View style={{ alignItems: 'center', flex: 1 }}>
+                                  <Text style={{ fontSize: 16, fontWeight: '800', color: '#FFEE00' }}>{String(tl.hours).padStart(2, '0')}</Text>
+                                  <Text style={{ fontSize: 8, fontWeight: '600', color: 'rgba(255,255,255,0.9)', textTransform: 'uppercase', marginTop: 1 }}>Ore</Text>
+                                </View>
+                                <Text style={{ fontSize: 14, fontWeight: '700', color: 'rgba(255,255,255,0.5)', marginHorizontal: 2 }}>:</Text>
+                                <View style={{ alignItems: 'center', flex: 1 }}>
+                                  <Text style={{ fontSize: 16, fontWeight: '800', color: '#FFEE00' }}>{String(tl.minutes).padStart(2, '0')}</Text>
+                                  <Text style={{ fontSize: 8, fontWeight: '600', color: 'rgba(255,255,255,0.9)', textTransform: 'uppercase', marginTop: 1 }}>Min</Text>
+                                </View>
+                              </View>
+                            </View>
+                          )}
                         </View>
-                      </TouchableOpacity>
-                    ))}
+                      );
+                    })}
                   </ScrollView>
-                  {currentSlide && (() => {
-                    const tl = calcLeft(currentSlide.deadline);
-                    const total = tl.days + tl.hours + tl.minutes;
-                    if (total <= 0) return null;
-                    
-                    return (
-                      <View style={responsiveStyles.timerBottomRight}>
-                        <View style={responsiveStyles.timerContainer}>
-                          <View style={responsiveStyles.timerContent}>
-                            {/* Day */}
-                            <View style={responsiveStyles.timerUnit}>
-                              <View style={responsiveStyles.timerBox}>
-                                <View style={responsiveStyles.timerNumberLine} />
-                                <Text style={responsiveStyles.timerNumber}>
-                                  {String(tl.days).padStart(2, '0')}
-                                </Text>
-                              </View>
-                              <Text style={responsiveStyles.timerLabel}>Zi</Text>
-                            </View>
-                            
-                            {/* Separator */}
-                            <View style={responsiveStyles.timerSeparator}>
-                              <View style={responsiveStyles.timerDot} />
-                              <View style={responsiveStyles.timerDot} />
-                            </View>
-                            
-                            {/* Hours */}
-                            <View style={responsiveStyles.timerUnit}>
-                              <View style={responsiveStyles.timerBox}>
-                                <View style={responsiveStyles.timerNumberLine} />
-                                <Text style={responsiveStyles.timerNumber}>
-                                  {String(tl.hours).padStart(2, '0')}
-                                </Text>
-                              </View>
-                              <Text style={responsiveStyles.timerLabel}>Ore</Text>
-                            </View>
-                            
-                            {/* Separator */}
-                            <View style={responsiveStyles.timerSeparator}>
-                              <View style={responsiveStyles.timerDot} />
-                              <View style={responsiveStyles.timerDot} />
-                            </View>
-                            
-                            {/* Minutes */}
-                            <View style={responsiveStyles.timerUnit}>
-                              <View style={responsiveStyles.timerBox}>
-                                <View style={responsiveStyles.timerNumberLine} />
-                                <Text style={responsiveStyles.timerNumber}>
-                                  {String(tl.minutes).padStart(2, '0')}
-                                </Text>
-                              </View>
-                              <Text style={responsiveStyles.timerLabel}>Min</Text>
-                            </View>
-                          </View>
-                        </View>
-                      </View>
-                    );
-                  })()}
                 </View>
 
                 {/* Slider Controls */}
                 <View style={responsiveStyles.sliderControls}>
                   <TouchableOpacity 
-                    style={responsiveStyles.sliderBtn}
+                    style={isDark ? [responsiveStyles.sliderBtn, styles.sliderBtnDark] : responsiveStyles.sliderBtn}
                     onPress={prevSlide}
                     activeOpacity={0.8}
                   >
-                    <Ionicons name="chevron-back" size={16} color={colors.text} style={{ opacity: 0.6 }} />
+                    <Ionicons
+                      name="chevron-back"
+                      size={20}
+                      color={isDark ? '#FFEE00' : colors.text}
+                      style={isDark ? undefined : { opacity: 0.7 }}
+                    />
                   </TouchableOpacity>
                   <TouchableOpacity 
-                    style={responsiveStyles.sliderBtn}
+                    style={isDark ? [responsiveStyles.sliderBtn, styles.sliderBtnDark] : responsiveStyles.sliderBtn}
                     onPress={nextSlide}
                     activeOpacity={0.8}
                   >
-                    <Ionicons name="chevron-forward" size={16} color={colors.text} style={{ opacity: 0.6 }} />
+                    <Ionicons
+                      name="chevron-forward"
+                      size={20}
+                      color={isDark ? '#FFEE00' : colors.text}
+                      style={isDark ? { opacity: 0.75 } : { opacity: 0.7 }}
+                    />
                   </TouchableOpacity>
+                </View>
+
+                {/* Dots indicator */}
+                <View style={responsiveStyles.dotsWrap}>
+                  {slides.map((_, i) => {
+                    const isActive = i === active;
+                    return (
+                      <TouchableOpacity
+                        key={`dot-${i}`}
+                        onPress={() => goToSlideFromUser(i)}
+                        activeOpacity={0.8}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        style={[
+                          responsiveStyles.dot,
+                          {
+                            backgroundColor: isActive
+                              ? (isDark ? '#FFEE00' : '#000')
+                              : (isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.18)'),
+                            opacity: isActive ? 1 : (isDark ? 0.7 : 0.85),
+                            transform: [{ scale: isActive ? 1.15 : 1 }],
+                          },
+                        ]}
+                      />
+                    );
+                  })}
                 </View>
               </>
             )}
           </Animated.View>
-        )}
 
-        {/* Toate Promoțiile Button */}
-        <View style={[responsiveStyles.actionCardsContainer, { paddingHorizontal: responsiveWidth(5) }]}>
-          <TouchableOpacity
-            style={[responsiveStyles.allPromosButton, { backgroundColor: colors.surface }]}
-            onPress={() => router.push('/Promotii')}
-            activeOpacity={0.8}
-          >
-            <Text style={[responsiveStyles.allPromosText, { color: colors.text }]}>Toate Promoțiile</Text>
-            <Ionicons name="arrow-forward" size={20} color={colors.text} />
-          </TouchableOpacity>
-        </View>
+          {/* Toate Promoțiile Button */}
+          <View style={[responsiveStyles.actionCardsContainer, { paddingHorizontal: responsiveWidth(5) }]}>
+            <TouchableOpacity
+              style={[responsiveStyles.allPromosButton, { backgroundColor: colors.surface }]}
+              onPress={() => router.push('/Promotii')}
+              activeOpacity={0.8}
+            >
+              <Text style={[responsiveStyles.allPromosText, { color: colors.text }]}>Toate Promoțiile</Text>
+              <Ionicons name="arrow-forward" size={20} color={colors.text} />
+            </TouchableOpacity>
+          </View>
 
-        {/* Action Cards Section - Apel and Mesaj */}
-        <View style={[responsiveStyles.actionCardsContainer, { paddingHorizontal: responsiveWidth(5) }]}>
-          {/* Apel Card */}
-          <TouchableOpacity
-            style={[
-              responsiveStyles.actionCard,
-              { 
-                backgroundColor: '#FFEE00',
-                borderColor: 'rgba(0, 0, 0, 0.1)',
-                shadowColor: '#FFEE00',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.15,
-                shadowRadius: 8,
-                elevation: 4,
-              }
-            ]}
-            onPress={() => {
-              Linking.openURL('tel:+37360535353');
-            }}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="call" size={24} color="#000" />
-            <Text style={[responsiveStyles.actionCardTitle, { color: '#000' }]}>Apel</Text>
-          </TouchableOpacity>
+          {/* Action Cards Section - Apel and Mesaj */}
+          <View style={[responsiveStyles.actionCardsContainer, { paddingHorizontal: responsiveWidth(5) }]}>
+            {/* Apel Card */}
+            <TouchableOpacity
+              style={[
+                responsiveStyles.actionCard,
+                { 
+                  backgroundColor: '#FFEE00',
+                  borderColor: 'rgba(0, 0, 0, 0.1)',
+                  shadowColor: '#FFEE00',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.15,
+                  shadowRadius: 8,
+                  elevation: 4,
+                }
+              ]}
+              onPress={() => {
+                Linking.openURL('tel:+37360535353');
+              }}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="call" size={24} color="#000" />
+              <Text style={[responsiveStyles.actionCardTitle, { color: '#000' }]}>Apel</Text>
+            </TouchableOpacity>
 
-          {/* Mesaj Card */}
-          <TouchableOpacity
-            style={[
-              responsiveStyles.actionCard,
-              { 
-                backgroundColor: '#FFEE00',
-                borderColor: 'rgba(0, 0, 0, 0.1)',
-                position: 'relative',
-              }
-            ]}
-            onPress={() => router.push('/Mesaje')}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="chatbubble-ellipses" size={24} color="#000" />
-            <Text style={[responsiveStyles.actionCardTitle, { color: '#000' }]}>Mesaj</Text>
-            {unreadMessagesCount > 0 && (
-              <View style={responsiveStyles.messageBadge}>
-                <Text style={responsiveStyles.messageBadgeText}>
-                  {unreadMessagesCount > 99 ? '99+' : unreadMessagesCount}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
+            {/* Mesaj Card */}
+            <TouchableOpacity
+              style={[
+                responsiveStyles.actionCard,
+                { 
+                  backgroundColor: '#FFEE00',
+                  borderColor: 'rgba(0, 0, 0, 0.1)',
+                  position: 'relative',
+                }
+              ]}
+              onPress={() => router.push('/Mesaje')}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="chatbubble-ellipses" size={24} color="#000" />
+              <Text style={[responsiveStyles.actionCardTitle, { color: '#000' }]}>Mesaj</Text>
+              {unreadMessagesCount > 0 && (
+                <View style={responsiveStyles.messageBadge}>
+                  <Text style={responsiveStyles.messageBadgeText}>
+                    {unreadMessagesCount > 99 ? '99+' : unreadMessagesCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
 
       </View>
     </Screen>
@@ -938,237 +782,6 @@ const getStyles = (isSmallScreen: boolean, scale: number) => StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  slideshowWrap: { 
-    marginTop: 0,
-    marginBottom: responsiveSize(16, scale),
-    overflow: 'hidden',
-    alignSelf: 'center',
-    width: '100%',
-    maxWidth: '100%',
-  },
-  timerBottomRight: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    width: '100%',
-    zIndex: 100,
-  },
-  timerContainer: {
-    width: '100%',
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    borderRadius: 0,
-    paddingHorizontal: responsiveSize(16, scale),
-    paddingVertical: responsiveSize(8, scale),
-    marginBottom: 0,
-  },
-  timerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: responsiveSize(12, scale),
-    paddingVertical: 0,
-  },
-  timerUnit: {
-    alignItems: 'center',
-    gap: responsiveSize(4, scale),
-    flex: 1,
-  },
-  timerBox: {
-    width: '100%',
-    height: responsiveSize(40, scale),
-    backgroundColor: '#000',
-    borderRadius: responsiveSize(6, scale),
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: responsiveSize(2, scale) },
-    shadowOpacity: 0.3,
-    shadowRadius: responsiveSize(4, scale),
-    elevation: 4,
-  },
-  timerNumberLine: {
-    position: 'absolute',
-    top: '50%',
-    left: 0,
-    right: 0,
-    height: 1,
-    backgroundColor: '#888',
-    zIndex: 1,
-  },
-  timerNumber: {
-    fontSize: responsiveSize(20, scale),
-    fontWeight: '700',
-    color: '#FFF',
-    zIndex: 2,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'Roboto',
-    letterSpacing: 0,
-  },
-  timerLabel: {
-    fontSize: responsiveSize(8, scale),
-    fontWeight: '600',
-    color: '#FFF',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginTop: responsiveSize(2, scale),
-  },
-  timerSeparator: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: responsiveSize(2, scale),
-    marginBottom: 0,
-    paddingVertical: responsiveSize(4, scale),
-  },
-  timerDot: {
-    width: responsiveSize(6, scale),
-    height: responsiveSize(6, scale),
-    borderRadius: responsiveSize(3, scale),
-    backgroundColor: '#000',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: responsiveHeight(8),
-  },
-  loadingText: {
-    marginTop: responsiveSize(12, scale),
-    fontSize: responsiveSize(14, scale),
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: responsiveHeight(8),
-  },
-  emptyText: {
-    marginTop: responsiveSize(12, scale),
-    fontSize: responsiveSize(15, scale),
-    textAlign: 'center',
-  },
-  slide: { 
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0,
-    shadowRadius: 0,
-    elevation: 0,
-    position: 'relative',
-  },
-  imageWrap: { 
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    overflow: 'hidden',
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  image: { 
-    width: '100%',
-    height: '100%',
-  },
-  imageGradient: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: '50%',
-    zIndex: 1,
-  },
-  slideTitleWrap: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 20,
-    zIndex: 20,
-  },
-  slideOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingHorizontal: 16,
-    paddingVertical: 18,
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    pointerEvents: 'none',
-  },
-  timerTopWrap: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 12,
-    width: '100%',
-    alignItems: 'center',
-  },
-  timerTopGradient: {
-    borderRadius: 18,
-    overflow: 'hidden',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 238, 0, 0.25)',
-    shadowColor: '#FFEE00',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  timerPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 238, 0, 0.35)',
-    alignSelf: 'flex-start',
-  },
-  timerPillText: {
-    color: '#FFEE00',
-    fontWeight: '800',
-    fontSize: 16,
-    letterSpacing: 0.6,
-    textShadowColor: 'rgba(255, 238, 0, 0.5)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 6,
-  },
-  timerPillStandalone: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    paddingVertical: 2,
-  },
-  timerIconWrap: {
-    backgroundColor: 'rgba(255, 238, 0, 0.15)',
-    borderRadius: 10,
-    padding: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 238, 0, 0.3)',
-  },
-  timerBorder: {
-    height: 2,
-    backgroundColor: '#000',
-    width: '100%',
-  },
-  titleBadge: {
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 14,
-    alignSelf: 'flex-start',
-    maxWidth: '92%',
-  },
   slideTitleText: {
     fontSize: isSmallScreen ? responsiveSize(21, scale) : responsiveSize(23, scale),
     fontWeight: '600',
@@ -1213,6 +826,19 @@ const getStyles = (isSmallScreen: boolean, scale: number) => StyleSheet.create({
     borderColor: 'rgba(255, 238, 0, 0.3)',
     shadowColor: '#FFEE00',
     shadowOpacity: 0.2,
+  },
+  dotsWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: responsiveSize(8, scale),
+    marginTop: responsiveSize(10, scale),
+    marginBottom: responsiveSize(2, scale),
+  },
+  dot: {
+    width: responsiveSize(7, scale),
+    height: responsiveSize(7, scale),
+    borderRadius: responsiveSize(4, scale),
   },
   actionCardsContainer: {
     marginTop: 0,
@@ -1354,39 +980,6 @@ const getStyles = (isSmallScreen: boolean, scale: number) => StyleSheet.create({
 
 // Static styles that don't need responsive values
 const styles = StyleSheet.create({
-  slide: { 
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0,
-    shadowRadius: 0,
-    elevation: 0,
-    position: 'relative',
-  },
-  imageWrap: { 
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    overflow: 'hidden',
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  image: { 
-    width: '100%',
-    height: '100%',
-  },
-  imageGradient: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: '50%',
-    zIndex: 1,
-  },
   slideTitleWrap: {
     position: 'absolute',
     bottom: 0,

@@ -13,10 +13,10 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { UserContext } from './context/UserContext';
-import { ThemeContext } from './context/ThemeContext';
-import { getColors } from './components/theme';
-import Screen from './components/Screen';
+import { UserContext } from './_context/UserContext';
+import { ThemeContext } from './_context/ThemeContext';
+import { getColors } from './_components/theme';
+import Screen from './_components/Screen';
 
 const { width } = Dimensions.get('window');
 const isSmallScreen = width < 375;
@@ -92,10 +92,10 @@ export default function Settings() {
               <View style={styles.switchRow}>
                 <View style={styles.switchLabelContainer}>
                   <View style={[styles.iconContainer, { backgroundColor: isDark ? colors.surface : '#333' }]}>
-                    <Ionicons 
-                      name={isDark ? "moon" : "sunny-outline"} 
-                      size={22} 
-                      color={colors.primaryButton} 
+                    <Ionicons
+                      name={isDark ? "moon" : "sunny-outline"}
+                      size={22}
+                      color={colors.primaryButton}
                     />
                   </View>
                   <Text style={[styles.optionText, { color: colors.text }]}>

@@ -21,10 +21,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { apiClient } from "../lib/apiClient";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { UserContext } from "./context/UserContext";
-import { ThemeContext } from "./context/ThemeContext";
-import Screen from "./components/Screen";
-import { getColors } from "./components/theme";
+import { UserContext } from "./_context/UserContext";
+import { ThemeContext } from "./_context/ThemeContext";
+import Screen from "./_components/Screen";
+import { getColors } from "./_components/theme";
 
 const { width, height } = Dimensions.get('window');
 const isSmallScreen = width < 375;
@@ -42,6 +42,8 @@ interface InputFieldProps {
   focusedInput: string | null;
   setFocusedInput: (value: string | null) => void;
   scrollViewRef?: React.RefObject<ScrollView>;
+  colors: { primaryButton: string; textMuted: string; background: string; border: string; text: string };
+  error?: string;
 }
 
 const InputField = React.memo<InputFieldProps>(({ 
@@ -55,6 +57,8 @@ const InputField = React.memo<InputFieldProps>(({
   focusedInput,
   setFocusedInput,
   scrollViewRef,
+  colors,
+  error,
 }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const isFocused = focusedInput === placeholder;
@@ -99,19 +103,19 @@ const InputField = React.memo<InputFieldProps>(({
         { transform: [{ scale: scaleAnim }] }
       ]}
     >
-      <View style={[styles.inputContainer, isFocused && styles.inputContainerFocused]}>
+      <View style={[styles.inputContainer, isFocused && styles.inputContainerFocused, { backgroundColor: colors.background, borderColor: isFocused ? colors.primaryButton : colors.border }]}>
         {icon && (
           <Ionicons 
             name={icon} 
             size={isSmallScreen ? 18 : 20} 
-            color={isFocused ? "#FFEE00" : "#999"} 
+            color={isFocused ? colors.primaryButton : colors.textMuted} 
             style={styles.inputIcon} 
           />
         )}
         <TextInput
           ref={inputRef}
           placeholder={placeholder}
-          placeholderTextColor="#999"
+          placeholderTextColor={colors.textMuted}
           value={value}
           onChangeText={onChangeText}
           secureTextEntry={secureTextEntry && !showPassword}
@@ -119,9 +123,10 @@ const InputField = React.memo<InputFieldProps>(({
           maxLength={maxLength}
           onFocus={handleFocus}
           onBlur={handleBlur}
-          style={[styles.input, secureTextEntry && styles.inputWithToggle]}
+          style={[styles.input, secureTextEntry && styles.inputWithToggle, { color: colors.text }]}
           autoCapitalize={secureTextEntry ? "none" : "words"}
           autoCorrect={!secureTextEntry}
+          accessibilityLabel={placeholder}
         />
         {secureTextEntry && (
           <TouchableOpacity
@@ -132,11 +137,14 @@ const InputField = React.memo<InputFieldProps>(({
             <Ionicons 
               name={showPassword ? "eye-off-outline" : "eye-outline"} 
               size={isSmallScreen ? 20 : 22} 
-              color={isFocused ? "#FFEE00" : "#999"} 
+              color={isFocused ? colors.primaryButton : colors.textMuted} 
             />
           </TouchableOpacity>
         )}
       </View>
+      {error ? (
+        <Text style={[styles.inputError, { color: '#E53935' }]}>{error}</Text>
+      ) : null}
     </Animated.View>
   );
 });
@@ -145,7 +153,7 @@ InputField.displayName = 'InputField';
 
 const LoginScreen: React.FC = () => {
   const router = useRouter();
-  const { setUser } = useContext(UserContext);
+  const { setUser, setToken } = useContext(UserContext);
   const { theme } = useContext(ThemeContext);
   const colors = getColors(theme);
 
@@ -166,6 +174,7 @@ const LoginScreen: React.FC = () => {
   const [showNotification, setShowNotification] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState("");
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -223,6 +232,7 @@ const LoginScreen: React.FC = () => {
   const PHONE_PREFIX = "+373";
   
   const handleTelefonChange = useCallback((text: string) => {
+    setFieldErrors((e) => ({ ...e, telefon: '' }));
     const onlyDigits = text.replace(/[^\d]/g, "");
     let rest = onlyDigits.startsWith("373") ? onlyDigits.slice(3) : onlyDigits;
     const limitedRest = rest.slice(0, 8);
@@ -264,20 +274,24 @@ const LoginScreen: React.FC = () => {
   ];
 
   const handleSignup = useCallback(async () => {
+    setFieldErrors({});
     // Validare pas 3: Telefon și Parolă
     if (!telefon || !password) {
-      console.error("Eroare: Completează numărul de telefon și parola.");
+      const next: Record<string, string> = {};
+      if (!telefon) next.telefon = 'Completează numărul de telefon.';
+      if (!password) next.password = 'Completează parola.';
+      setFieldErrors(next);
       return;
     }
 
     const phoneRegex = /^\+373[0-9]{8}$/;
     if (!phoneRegex.test(telefon)) {
-      console.error("Eroare: Numărul de telefon trebuie să fie în format +373XXXXXXXX.");
+      setFieldErrors({ telefon: 'Numărul trebuie să fie în format +373XXXXXXXX.' });
       return;
     }
 
     if (password.length < 6) {
-      console.error("Eroare: Parola trebuie să aibă minim 6 caractere.");
+      setFieldErrors({ password: 'Parola trebuie să aibă minim 6 caractere.' });
       return;
     }
 
@@ -293,8 +307,12 @@ const LoginScreen: React.FC = () => {
       });
 
       if (error) {
-        console.error("Eroare la signup:", error);
+        Alert.alert('Eroare la înregistrare', error);
       } else if (data) {
+        const userObj = data.user ?? data;
+        const tokenObj = data.token ?? null;
+        if (tokenObj) await setToken(tokenObj);
+        setUser(userObj);
         setIsSignup(false);
         setSignupStep(1);
         setNume(""); 
@@ -306,20 +324,22 @@ const LoginScreen: React.FC = () => {
         setSelectedMonth(null);
         setSelectedYear(null);
         setPassword("");
-        setUser(data);
-        // setUser salvează automat în AsyncStorage
         router.replace("/Home");
       }
     } catch (error: any) {
-      console.error("Eroare la signup:", error.message || "Ceva nu a mers bine.");
+      Alert.alert('Eroare', error.message || 'Ceva nu a mers bine. Încearcă din nou.');
     } finally {
       setIsLoading(false);
     }
-  }, [nume, prenume, telefon, dataNasterii, sex, password, setUser, router]);
+  }, [nume, prenume, telefon, dataNasterii, sex, password, setUser, setToken, router]);
 
   const handleLogin = useCallback(async () => {
+    setFieldErrors({});
     if (!telefon || !password) {
-      console.error("Eroare: Introdu numărul de telefon și parola.");
+      const next: Record<string, string> = {};
+      if (!telefon) next.telefon = 'Introdu numărul de telefon.';
+      if (!password) next.password = 'Introdu parola.';
+      setFieldErrors(next);
       return;
     }
 
@@ -331,21 +351,22 @@ const LoginScreen: React.FC = () => {
       console.log('[Login] Răspuns API:', { hasData: !!data, hasError: !!error, data, error });
 
       if (error) {
-        console.error('[Login] Eroare la login:', error);
+        Alert.alert('Autentificare eșuată', error);
         return;
       }
 
-      if (!data) {
-        console.error('[Login] Nu s-au primit date de la API');
+      const userObj = data?.user ?? data;
+      if (!userObj) {
+        Alert.alert('Eroare', 'Nu s-au primit date de la server. Încearcă din nou.');
         return;
       }
 
-      console.log('[Login] Date utilizator primite:', data);
-      console.log('[Login] Setare utilizator în context...');
-      setUser(data);
+      const tokenObj = data?.token ?? null;
+      if (tokenObj) await setToken(tokenObj);
+      setUser(userObj);
       // setUser salvează automat în AsyncStorage
       
-      const prenume = data.prenume || data.nume || 'Utilizator';
+      const prenume = userObj.prenume || userObj.nume || 'Utilizator';
       setNotificationMessage(`Bun venit, ${prenume}!`);
       setShowNotification(true);
       Animated.spring(notificationAnim, {
@@ -366,54 +387,61 @@ const LoginScreen: React.FC = () => {
         });
       }, 2500);
     } catch (error: any) {
-      console.error('[Login] Excepție la login:', error);
+      Alert.alert('Eroare', error.message || 'Nu s-a putut conecta. Verifică conexiunea și încearcă din nou.');
     } finally {
       setIsLoading(false);
     }
-  }, [telefon, password, setUser, router]);
+  }, [telefon, password, setUser, setToken, router]);
 
   const toggleSignup = useCallback(() => {
     setIsSignup(!isSignup);
     setSignupStep(1);
     setFocusedInput(null);
+    setFieldErrors({});
   }, [isSignup]);
 
   const nextStep = useCallback(() => {
+    setFieldErrors({});
     if (signupStep === 1) {
       // Validare pas 1: Nume și Prenume
       if (!nume || !prenume) {
-        console.error("Eroare: Completează numele și prenumele.");
+        const next: Record<string, string> = {};
+        if (!nume) next.nume = 'Completează numele.';
+        if (!prenume) next.prenume = 'Completează prenumele.';
+        setFieldErrors(next);
         return;
       }
       const nameRegex = /^[A-Za-zăîâșțĂÎÂȘȚ]+$/;
       if (!nameRegex.test(nume) || !nameRegex.test(prenume)) {
-        console.error("Eroare: Nume și prenume trebuie să conțină doar litere.");
+        const next: Record<string, string> = {};
+        if (!nameRegex.test(nume)) next.nume = 'Doar litere.';
+        if (!nameRegex.test(prenume)) next.prenume = 'Doar litere.';
+        setFieldErrors(next);
         return;
       }
       setSignupStep(2);
     } else if (signupStep === 2) {
       // Validare pas 2: Data nașterii și Sex
       if (!selectedDay || !selectedMonth || !selectedYear) {
-        console.error("Eroare: Completează data nașterii (zi, lună, an).");
+        setFieldErrors({ dataNasterii: 'Completează data nașterii (zi, lună, an).' });
         return;
       }
       if (!sex) {
-        console.error("Eroare: Selectează sexul.");
+        setFieldErrors({ sex: 'Selectează sexul.' });
         return;
       }
       if (!(sex.toUpperCase() === "M" || sex.toUpperCase() === "F")) {
-        console.error("Eroare: Sexul trebuie să fie 'M' sau 'F'.");
+        setFieldErrors({ sex: "Sexul trebuie să fie 'M' sau 'F'." });
         return;
       }
-      // Verifică dacă data este validă
       const date = new Date(selectedYear, selectedMonth - 1, selectedDay);
       if (date.getFullYear() !== selectedYear || date.getMonth() !== selectedMonth - 1 || date.getDate() !== selectedDay) {
-        console.error("Eroare: Data nașterii nu este validă.");
+        setFieldErrors({ dataNasterii: 'Data nașterii nu este validă.' });
         return;
       }
       setSignupStep(3);
     }
-  }, [signupStep, nume, prenume, dataNasterii, sex]);
+  }, [signupStep, nume, prenume, selectedDay, selectedMonth, selectedYear, sex]);
 
   const prevStep = useCallback(() => {
     if (signupStep > 1) {
@@ -434,8 +462,8 @@ const LoginScreen: React.FC = () => {
   }, []);
 
   return (
-    <View style={styles.gradientContainer}>
-      <Screen style={{ backgroundColor: '#FFFFFF' }}>
+    <View style={[styles.gradientContainer, { backgroundColor: colors.background }]}>
+      <Screen style={{ backgroundColor: colors.background }}>
         <KeyboardAvoidingView 
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.keyboardAvoid}
@@ -479,10 +507,10 @@ const LoginScreen: React.FC = () => {
 
               {/* Title Section */}
               <View style={styles.titleSection}>
-                <Text style={[styles.title, { fontSize: titleSize }]}>
+                <Text style={[styles.title, { fontSize: titleSize, color: colors.text }]}>
                   {isSignup ? "Creează cont nou" : "Bine ai revenit"}
                 </Text>
-                <Text style={styles.subtitle}>
+                <Text style={[styles.subtitle, { color: colors.textMuted }]}>
                   {isSignup 
                     ? "Completează formularul pentru a începe" 
                     : "Autentifică-te pentru a continua"}
@@ -494,27 +522,29 @@ const LoginScreen: React.FC = () => {
                 {isSignup && (
                   <>
                     {/* Progress Indicator */}
-                    <View style={styles.progressContainer}>
+                    <View style={[styles.progressContainer, { borderColor: colors.border }]}>
                       {[1, 2, 3].map((step) => (
                         <View key={step} style={styles.progressStepContainer}>
                           <View
                             style={[
                               styles.progressStep,
-                              signupStep >= step && styles.progressStepActive,
+                              signupStep >= step && [styles.progressStepActive, { backgroundColor: colors.primaryButton, borderColor: colors.primaryButton }],
+                              signupStep < step && { backgroundColor: colors.surface, borderColor: colors.border },
                             ]}
                           />
                           {step < 3 && (
                             <View
                               style={[
                                 styles.progressLine,
-                                signupStep > step && styles.progressLineActive,
+                                { backgroundColor: colors.border },
+                                signupStep > step && [styles.progressLineActive, { backgroundColor: colors.primaryButton }],
                               ]}
                             />
                           )}
                         </View>
                       ))}
                     </View>
-                    <Text style={styles.stepText}>
+                    <Text style={[styles.stepText, { color: colors.textMuted }]}>
                       Pasul {signupStep} din 3
                     </Text>
 
@@ -524,20 +554,24 @@ const LoginScreen: React.FC = () => {
                         <InputField
                           placeholder="Nume"
                           value={nume}
-                          onChangeText={setNume}
+                          onChangeText={(t) => { setFieldErrors((e) => ({ ...e, nume: '' })); setNume(t); }}
                           icon="person-outline"
                           focusedInput={focusedInput}
                           setFocusedInput={setFocusedInput}
                           scrollViewRef={scrollViewRef}
+                          colors={colors}
+                          error={fieldErrors.nume}
                         />
                         <InputField
                           placeholder="Prenume"
                           value={prenume}
-                          onChangeText={setPrenume}
+                          onChangeText={(t) => { setFieldErrors((e) => ({ ...e, prenume: '' })); setPrenume(t); }}
                           icon="person-outline"
                           focusedInput={focusedInput}
                           setFocusedInput={setFocusedInput}
                           scrollViewRef={scrollViewRef}
+                          colors={colors}
+                          error={fieldErrors.prenume}
                         />
                       </>
                     )}
@@ -547,21 +581,22 @@ const LoginScreen: React.FC = () => {
                       <>
                         {/* Buton pentru Data Nașterii */}
                         <TouchableOpacity
-                          style={styles.dateButton}
-                          onPress={() => setShowDatePicker(true)}
+                          style={[styles.dateButton, { backgroundColor: colors.background, borderColor: fieldErrors.dataNasterii ? '#E53935' : colors.border }]}
+                          onPress={() => { setFieldErrors((e) => ({ ...e, dataNasterii: '' })); setShowDatePicker(true); }}
                           activeOpacity={0.7}
                         >
                           <View style={styles.dateButtonContent}>
                             <Ionicons 
                               name="calendar-outline" 
                               size={20} 
-                              color={dataNasterii ? "#000" : "#999"} 
+                              color={dataNasterii ? colors.text : colors.textMuted} 
                               style={styles.dateButtonIcon}
                             />
                             <View style={styles.dateButtonTextContainer}>
                               <Text style={[
                                 styles.dateButtonLabel,
-                                !dataNasterii && styles.dateButtonLabelPlaceholder
+                                !dataNasterii && styles.dateButtonLabelPlaceholder,
+                                { color: dataNasterii ? colors.text : colors.textMuted }
                               ]}>
                                 {dataNasterii 
                                   ? `${selectedDay || ''} ${selectedMonth ? months.find(m => m.value === selectedMonth)?.label : ''} ${selectedYear || ''}`
@@ -569,7 +604,7 @@ const LoginScreen: React.FC = () => {
                                 }
                               </Text>
                               {dataNasterii && (
-                                <Text style={styles.dateButtonSubLabel}>
+                                <Text style={[styles.dateButtonSubLabel, { color: colors.textMuted }]}>
                                   {dataNasterii}
                                 </Text>
                               )}
@@ -577,10 +612,13 @@ const LoginScreen: React.FC = () => {
                             <Ionicons 
                               name="chevron-forward" 
                               size={20} 
-                              color="#999" 
+                              color={colors.textMuted} 
                             />
                           </View>
                         </TouchableOpacity>
+                        {fieldErrors.dataNasterii ? (
+                          <Text style={[styles.inputError, { color: '#E53935', marginBottom: 6 }]}>{fieldErrors.dataNasterii}</Text>
+                        ) : null}
 
                         {/* Modal pentru Date Picker */}
                         <Modal
@@ -589,22 +627,22 @@ const LoginScreen: React.FC = () => {
                           animationType="slide"
                           onRequestClose={() => setShowDatePicker(false)}
                         >
-                          <View style={styles.modalOverlay}>
-                            <View style={styles.modalContent}>
-                              <View style={styles.modalHeader}>
-                                <Text style={styles.modalTitle}>Selectează data nașterii</Text>
+                          <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
+                            <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+                              <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+                                <Text style={[styles.modalTitle, { color: colors.text }]}>Selectează data nașterii</Text>
                                 <TouchableOpacity
                                   onPress={() => setShowDatePicker(false)}
-                                  style={styles.modalCloseButton}
+                                  style={[styles.modalCloseButton, { backgroundColor: colors.surface }]}
                                 >
-                                  <Ionicons name="close" size={24} color="#000" />
+                                  <Ionicons name="close" size={24} color={colors.text} />
                                 </TouchableOpacity>
                               </View>
 
-                              <View style={styles.datePickerRow}>
+                              <View style={[styles.datePickerRow, { backgroundColor: colors.surface }]}>
                                 {/* Zi */}
                                 <View style={styles.datePickerColumn}>
-                                  <Text style={styles.datePickerSubLabel}>Zi</Text>
+                                  <Text style={[styles.datePickerSubLabel, { color: colors.textMuted }]}>Zi</Text>
                                   <ScrollView 
                                     style={styles.datePickerScroll}
                                     showsVerticalScrollIndicator={false}
@@ -616,7 +654,8 @@ const LoginScreen: React.FC = () => {
                                           key={day}
                                           style={[
                                             styles.datePickerOption,
-                                            selectedDay === day && styles.datePickerOptionSelected
+                                            selectedDay === day && styles.datePickerOptionSelected,
+                                            { backgroundColor: selectedDay === day ? colors.primaryButton : colors.background },
                                           ]}
                                           onPress={() => {
                                             setSelectedDay(day);
@@ -625,21 +664,22 @@ const LoginScreen: React.FC = () => {
                                         >
                                           <Text style={[
                                             styles.datePickerOptionText,
-                                            selectedDay === day && styles.datePickerOptionTextSelected
+                                            selectedDay === day && styles.datePickerOptionTextSelected,
+                                            { color: selectedDay === day ? '#000' : colors.textMuted },
                                           ]}>
                                             {day}
                                           </Text>
                                         </TouchableOpacity>
                                       ))
                                     ) : (
-                                      <Text style={styles.datePickerHint}>Selectează luna și anul</Text>
+                                      <Text style={[styles.datePickerHint, { color: colors.textMuted }]}>Selectează luna și anul</Text>
                                     )}
                                   </ScrollView>
                                 </View>
 
                                 {/* Lună */}
                                 <View style={styles.datePickerColumn}>
-                                  <Text style={styles.datePickerSubLabel}>Lună</Text>
+                                  <Text style={[styles.datePickerSubLabel, { color: colors.textMuted }]}>Lună</Text>
                                   <ScrollView 
                                     style={styles.datePickerScroll}
                                     showsVerticalScrollIndicator={false}
@@ -650,7 +690,8 @@ const LoginScreen: React.FC = () => {
                                         key={month.value}
                                         style={[
                                           styles.datePickerOption,
-                                          selectedMonth === month.value && styles.datePickerOptionSelected
+                                          selectedMonth === month.value && styles.datePickerOptionSelected,
+                                          { backgroundColor: selectedMonth === month.value ? colors.primaryButton : colors.background },
                                         ]}
                                         onPress={() => {
                                           setSelectedMonth(month.value);
@@ -666,7 +707,8 @@ const LoginScreen: React.FC = () => {
                                       >
                                         <Text style={[
                                           styles.datePickerOptionText,
-                                          selectedMonth === month.value && styles.datePickerOptionTextSelected
+                                          selectedMonth === month.value && styles.datePickerOptionTextSelected,
+                                          { color: selectedMonth === month.value ? '#000' : colors.textMuted },
                                         ]}>
                                           {month.label.substring(0, 3)}
                                         </Text>
@@ -677,7 +719,7 @@ const LoginScreen: React.FC = () => {
 
                                 {/* An */}
                                 <View style={styles.datePickerColumn}>
-                                  <Text style={styles.datePickerSubLabel}>An</Text>
+                                  <Text style={[styles.datePickerSubLabel, { color: colors.textMuted }]}>An</Text>
                                   <ScrollView 
                                     style={styles.datePickerScroll}
                                     showsVerticalScrollIndicator={false}
@@ -688,7 +730,8 @@ const LoginScreen: React.FC = () => {
                                         key={year}
                                         style={[
                                           styles.datePickerOption,
-                                          selectedYear === year && styles.datePickerOptionSelected
+                                          selectedYear === year && styles.datePickerOptionSelected,
+                                          { backgroundColor: selectedYear === year ? colors.primaryButton : colors.background },
                                         ]}
                                         onPress={() => {
                                           setSelectedYear(year);
@@ -704,7 +747,8 @@ const LoginScreen: React.FC = () => {
                                       >
                                         <Text style={[
                                           styles.datePickerOptionText,
-                                          selectedYear === year && styles.datePickerOptionTextSelected
+                                          selectedYear === year && styles.datePickerOptionTextSelected,
+                                          { color: selectedYear === year ? '#000' : colors.textMuted },
                                         ]}>
                                           {year}
                                         </Text>
@@ -734,24 +778,26 @@ const LoginScreen: React.FC = () => {
 
                         {/* Butoane pentru Sex */}
                         <View style={styles.sexSelectorContainer}>
-                          <Text style={styles.sexSelectorLabel}>Sex</Text>
+                          <Text style={[styles.sexSelectorLabel, { color: colors.textMuted }]}>Sex</Text>
                           <View style={styles.sexButtonsRow}>
                             <TouchableOpacity
                               style={[
                                 styles.sexButton,
-                                sex === 'M' && styles.sexButtonSelected
+                                sex === 'M' && styles.sexButtonSelected,
+                                { backgroundColor: sex === 'M' ? colors.primaryButton : colors.background, borderColor: sex === 'M' ? colors.primaryButton : colors.border },
                               ]}
-                              onPress={() => setSex('M')}
+                              onPress={() => { setFieldErrors((e) => ({ ...e, sex: '' })); setSex('M'); }}
                               activeOpacity={0.7}
                             >
                               <Ionicons 
                                 name="male" 
                                 size={24} 
-                                color={sex === 'M' ? '#000' : '#666'} 
+                                color={sex === 'M' ? '#000' : colors.textMuted} 
                               />
                               <Text style={[
                                 styles.sexButtonText,
-                                sex === 'M' && styles.sexButtonTextSelected
+                                sex === 'M' && styles.sexButtonTextSelected,
+                                { color: sex === 'M' ? '#000' : colors.textMuted },
                               ]}>
                                 Masculin
                               </Text>
@@ -759,24 +805,29 @@ const LoginScreen: React.FC = () => {
                             <TouchableOpacity
                               style={[
                                 styles.sexButton,
-                                sex === 'F' && styles.sexButtonSelected
+                                sex === 'F' && styles.sexButtonSelected,
+                                { backgroundColor: sex === 'F' ? colors.primaryButton : colors.background, borderColor: sex === 'F' ? colors.primaryButton : colors.border },
                               ]}
-                              onPress={() => setSex('F')}
+                              onPress={() => { setFieldErrors((e) => ({ ...e, sex: '' })); setSex('F'); }}
                               activeOpacity={0.7}
                             >
                               <Ionicons 
                                 name="female" 
                                 size={24} 
-                                color={sex === 'F' ? '#000' : '#666'} 
+                                color={sex === 'F' ? '#000' : colors.textMuted} 
                               />
                               <Text style={[
                                 styles.sexButtonText,
-                                sex === 'F' && styles.sexButtonTextSelected
+                                sex === 'F' && styles.sexButtonTextSelected,
+                                { color: sex === 'F' ? '#000' : colors.textMuted },
                               ]}>
                                 Feminin
                               </Text>
                             </TouchableOpacity>
                           </View>
+                          {fieldErrors.sex ? (
+                            <Text style={[styles.inputError, { color: '#E53935', marginTop: 4 }]}>{fieldErrors.sex}</Text>
+                          ) : null}
                         </View>
                       </>
                     )}
@@ -794,16 +845,20 @@ const LoginScreen: React.FC = () => {
                           focusedInput={focusedInput}
                           setFocusedInput={setFocusedInput}
                           scrollViewRef={scrollViewRef}
+                          colors={colors}
+                          error={fieldErrors.telefon}
                         />
                         <InputField
                           placeholder="Parolă"
                           value={password}
-                          onChangeText={setPassword}
+                          onChangeText={(t) => { setFieldErrors((e) => ({ ...e, password: '' })); setPassword(t); }}
                           secureTextEntry
                           icon="lock-closed-outline"
                           focusedInput={focusedInput}
                           setFocusedInput={setFocusedInput}
                           scrollViewRef={scrollViewRef}
+                          colors={colors}
+                          error={fieldErrors.password}
                         />
                       </>
                     )}
@@ -813,11 +868,11 @@ const LoginScreen: React.FC = () => {
                       {signupStep > 1 && (
                         <TouchableOpacity
                           onPress={prevStep}
-                          style={[styles.navButton, styles.navButtonSecondary]}
+                          style={[styles.navButton, styles.navButtonSecondary, { backgroundColor: colors.surface, borderColor: colors.border }]}
                           activeOpacity={0.85}
                         >
-                          <Ionicons name="arrow-back" size={18} color="#666" />
-                          <Text style={styles.navButtonTextSecondary}>Înapoi</Text>
+                          <Ionicons name="arrow-back" size={18} color={colors.textMuted} />
+                          <Text style={[styles.navButtonTextSecondary, { color: colors.textMuted }]}>Înapoi</Text>
                         </TouchableOpacity>
                       )}
                       <TouchableOpacity
@@ -861,16 +916,20 @@ const LoginScreen: React.FC = () => {
                       focusedInput={focusedInput}
                       setFocusedInput={setFocusedInput}
                       scrollViewRef={scrollViewRef}
+                      colors={colors}
+                      error={fieldErrors.telefon}
                     />
                     <InputField
                       placeholder="Parolă"
                       value={password}
-                      onChangeText={setPassword}
+                      onChangeText={(t) => { setFieldErrors((e) => ({ ...e, password: '' })); setPassword(t); }}
                       secureTextEntry
                       icon="lock-closed-outline"
                       focusedInput={focusedInput}
                       setFocusedInput={setFocusedInput}
                       scrollViewRef={scrollViewRef}
+                      colors={colors}
+                      error={fieldErrors.password}
                     />
 
                     {/* Button */}
@@ -910,9 +969,9 @@ const LoginScreen: React.FC = () => {
                   style={styles.switchButton}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.switchText}>
+                  <Text style={[styles.switchText, { color: colors.textMuted }]}>
                     {isSignup ? "Ai deja cont? " : "Nu ai cont? "}
-                    <Text style={styles.switchTextBold}>
+                    <Text style={[styles.switchTextBold, { color: colors.primaryButton }]}>
                       {isSignup ? "Loghează-te" : "Creează unul"}
                     </Text>
                   </Text>
@@ -1020,6 +1079,11 @@ const styles = StyleSheet.create({
   },
   inputWrapper: {
     marginBottom: 14,
+  },
+  inputError: {
+    fontSize: 12,
+    marginTop: 4,
+    marginLeft: 4,
   },
   inputContainer: {
     flexDirection: "row",

@@ -35,6 +35,15 @@
           "color": "#FFEE00",
           "sounds": []
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          },
+          "ios": {}
+        }
       ]
     ]
   }

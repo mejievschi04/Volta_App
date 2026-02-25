@@ -1,8 +1,8 @@
 import { Slot } from 'expo-router';
 import React, { useContext } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { ThemeContext } from './context/ThemeContext';
-import { getColors } from './components/theme';
+import { ThemeContext } from './_context/ThemeContext';
+import { getColors } from './_components/theme';
 
 export default function Layout() {
   const { theme } = useContext(ThemeContext);

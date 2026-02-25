@@ -12,16 +12,16 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { apiClient } from "../lib/apiClient";
-import { UserContext } from "./context/UserContext";
-import { ThemeContext } from "./context/ThemeContext";
-import DiscountCard from "./components/DiscountCard";
+import { UserContext } from "./_context/UserContext";
+import { ThemeContext } from "./_context/ThemeContext";
+import DiscountCard from "./_components/DiscountCard";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter, useFocusEffect } from "expo-router";
 import * as Notifications from 'expo-notifications';
-import { Platform } from "react-native";
-import Screen from "./components/Screen";
-import { getColors } from "./components/theme";
-import { useResponsive, responsiveSize, responsiveWidth, responsiveHeight } from "./hooks/useResponsive";
+import Screen from "./_components/Screen";
+import { getColors, spacing } from "./_components/theme";
+import { useResponsive, responsiveSize, responsiveWidth, responsiveHeight } from "./_hooks/useResponsive";
+import PrimaryButton from "./_components/PrimaryButton";
 
 type Notification = {
   id: string;
@@ -34,11 +34,13 @@ type Notification = {
 
 const ProfileScreen = () => {
   const router = useRouter();
-  const { user, setUser } = useContext(UserContext);
+  const { user, setUser, selectedCardPercent, setSelectedCardPercent } = useContext(UserContext);
   const { theme } = useContext(ThemeContext);
   const colors = getColors(theme);
   const isDark = theme === 'dark';
-  const { isSmallScreen, scale } = useResponsive();
+  const { isSmallScreen, scale, width: screenWidth } = useResponsive();
+  const [cardIndex, setCardIndex] = useState(0);
+  const cardsScrollRef = useRef<ScrollView>(null);
   const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -62,29 +64,6 @@ const ProfileScreen = () => {
         useNativeDriver: true,
       }),
     ]).start();
-
-    // Configure notifications
-    Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-      }),
-    });
-
-    // Request permissions
-    (async () => {
-      if (Platform.OS === 'android') {
-        await Notifications.setNotificationChannelAsync('default', {
-          name: 'default',
-          importance: Notifications.AndroidImportance.MAX,
-          vibrationPattern: [0, 250, 250, 250],
-          lightColor: '#FFEE00',
-          sound: 'default',
-        });
-      }
-      await Notifications.requestPermissionsAsync();
-    })();
   }, []);
 
   const fetchUserData = useCallback(async () => {
@@ -303,7 +282,7 @@ const ProfileScreen = () => {
   }
 
   return (
-    <Screen>
+    <Screen style={{ overflow: 'visible' }}>
       <View style={[responsiveStyles.container, { backgroundColor: colors.background }]}>
 
         <ScrollView
@@ -314,9 +293,7 @@ const ProfileScreen = () => {
           <Animated.View
             style={[
               responsiveStyles.content,
-              {
-                opacity: fadeAnim,
-              },
+              { opacity: fadeAnim, overflow: 'visible' },
             ]}
           >
             {/* Modern User Section */}
@@ -331,7 +308,7 @@ const ProfileScreen = () => {
                     borderRadius: 16,
                     backgroundColor: colors.surface,
                     overflow: 'hidden',
-                  }
+                  },
                 ]}
               >
                 <View style={responsiveStyles.avatarContainer}>
@@ -364,7 +341,7 @@ const ProfileScreen = () => {
                     borderColor: '#FFEE00',
                     borderRadius: 16,
                     overflow: 'hidden',
-                  }
+                  },
                 ]}
               >
                 <LinearGradient
@@ -392,27 +369,120 @@ const ProfileScreen = () => {
               </Animated.View>
             )}
 
-          {/* Discount Card */}
-          <View style={styles.cardContainer}>
-            <DiscountCard
-              name={cardName}
-              discountValue={10}
-              cardCode={`VOLTA-${displayUserData?.id ? String(displayUserData.id).slice(0, 4).toUpperCase() : "0000"}`}
-              barcodeValue={displayUserData?.id ? String(displayUserData.id).slice(0, 12) : "458712345678"}
-            />
+          {/* Carduri reducere – încap în layout, fără tăiere */}
+          <View style={styles.cardsSwipeContainer}>
+            <ScrollView
+              ref={cardsScrollRef}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              decelerationRate="fast"
+              snapToInterval={screenWidth - 2 * spacing.lg}
+              snapToAlignment="center"
+              contentContainerStyle={styles.cardsSwipeContent}
+              onMomentumScrollEnd={(e) => {
+                const pageW = screenWidth - 2 * spacing.lg;
+                const idx = Math.round(e.nativeEvent.contentOffset.x / pageW);
+                setCardIndex(idx);
+              }}
+            >
+              {selectedCardPercent === 10 ? (
+                <>
+                  <View style={[styles.cardPage, { width: screenWidth - 2 * spacing.lg }]}>
+                    <DiscountCard
+                      name={cardName}
+                      discountValue={10}
+                      cardCode={`VOLTA-${displayUserData?.id ? String(displayUserData.id).slice(0, 4).toUpperCase() : "0000"}`}
+                      barcodeValue={displayUserData?.id ? String(displayUserData.id).slice(0, 12) : "458712345678"}
+                      profileMode
+                      variant="primary"
+                      maxWidth={screenWidth - 2 * spacing.lg - 16}
+                    />
+                    <View style={[styles.cardSelectButton, styles.cardSelectButtonSelected, { borderColor: colors.border }]}>
+                      <Ionicons name="checkmark-circle" size={16} color={colors.textMuted} />
+                      <Text style={[styles.cardSelectButtonText, { color: colors.textMuted }]}>Selectat</Text>
+                    </View>
+                  </View>
+                  <View style={[styles.cardPage, { width: screenWidth - 2 * spacing.lg }]}>
+                    <DiscountCard
+                      name={cardName}
+                      discountValue={5}
+                      cardCode={`VOLTA-${displayUserData?.id ? String(displayUserData.id).slice(0, 4).toUpperCase() : "0000"}`}
+                      barcodeValue={displayUserData?.id ? String(displayUserData.id).slice(0, 12) : "458712345678"}
+                      profileMode
+                      variant="secondary"
+                      maxWidth={screenWidth - 2 * spacing.lg - 16}
+                    />
+                    <TouchableOpacity
+                      style={[styles.cardSelectButton, { borderColor: isDark ? colors.primaryButton : '#000' }]}
+                      onPress={() => {
+                        setSelectedCardPercent(5);
+                        setCardIndex(0);
+                        cardsScrollRef.current?.scrollTo({ x: 0, animated: true });
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.cardSelectButtonText, { color: isDark ? colors.primaryButton : '#000' }]}>Selectează</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              ) : (
+                <>
+                  <View style={[styles.cardPage, { width: screenWidth - 2 * spacing.lg }]}>
+                    <DiscountCard
+                      name={cardName}
+                      discountValue={5}
+                      cardCode={`VOLTA-${displayUserData?.id ? String(displayUserData.id).slice(0, 4).toUpperCase() : "0000"}`}
+                      barcodeValue={displayUserData?.id ? String(displayUserData.id).slice(0, 12) : "458712345678"}
+                      profileMode
+                      variant="secondary"
+                      maxWidth={screenWidth - 2 * spacing.lg - 16}
+                    />
+                    <View style={[styles.cardSelectButton, styles.cardSelectButtonSelected, { backgroundColor: colors.navBarBg, borderColor: colors.navBarBorder }]}>
+                      <Ionicons name="checkmark-circle" size={16} color={colors.navBarInactive} />
+                      <Text style={[styles.cardSelectButtonText, { color: colors.navBarInactive }]}>Selectat</Text>
+                    </View>
+                  </View>
+                  <View style={[styles.cardPage, { width: screenWidth - 2 * spacing.lg }]}>
+                    <DiscountCard
+                      name={cardName}
+                      discountValue={10}
+                      cardCode={`VOLTA-${displayUserData?.id ? String(displayUserData.id).slice(0, 4).toUpperCase() : "0000"}`}
+                      barcodeValue={displayUserData?.id ? String(displayUserData.id).slice(0, 12) : "458712345678"}
+                      profileMode
+                      variant="primary"
+                      maxWidth={screenWidth - 2 * spacing.lg - 16}
+                    />
+                    <TouchableOpacity
+                      style={[styles.cardSelectButton, { borderColor: isDark ? colors.primaryButton : '#000' }]}
+                      onPress={() => {
+                        setSelectedCardPercent(10);
+                        setCardIndex(0);
+                        cardsScrollRef.current?.scrollTo({ x: 0, animated: true });
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.cardSelectButtonText, { color: isDark ? colors.primaryButton : '#000' }]}>Selectează</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+            </ScrollView>
+            <View style={styles.cardDots}>
+              <View style={[styles.cardDot, { backgroundColor: isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.2)' }, cardIndex === 0 && styles.cardDotActive]} />
+              <View style={[styles.cardDot, { backgroundColor: isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.2)' }, cardIndex === 1 && styles.cardDotActive]} />
+            </View>
           </View>
 
           {/* Action Buttons */}
           <View style={styles.actionsSection}>
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: isDark ? colors.surface : 'transparent', borderColor: colors.border }]}
-              onPress={() => {
-                if (totalNotifications > 0) {
-                  router.push("/Notifications");
-                }
-              }}
-              activeOpacity={totalNotifications > 0 ? 0.7 : 1}
-              disabled={totalNotifications === 0}
+              onPress={() => router.push("/Notifications")}
+              activeOpacity={0.7}
+              accessibilityLabel="Notificări"
+              accessibilityRole="button"
+              accessibilityHint="Deschide lista de notificări"
             >
               <View style={[styles.actionIconContainer, { backgroundColor: isDark ? colors.surface : '#333' }]}>
                 <Ionicons name="notifications-outline" size={24} color={colors.primaryButton} />
@@ -430,6 +500,9 @@ const ProfileScreen = () => {
               style={[styles.actionButton, { backgroundColor: isDark ? colors.surface : 'transparent', borderColor: colors.border }]}
               onPress={() => router.push("/Settings")}
               activeOpacity={0.7}
+              accessibilityLabel="Setări"
+              accessibilityRole="button"
+              accessibilityHint="Deschide ecranul de setări"
             >
               <View style={[styles.actionIconContainer, { backgroundColor: isDark ? colors.surface : '#333' }]}>
                 <Ionicons name="settings-outline" size={24} color={colors.primaryButton} />
@@ -439,35 +512,13 @@ const ProfileScreen = () => {
             </TouchableOpacity>
           </View>
 
-          {/* Points Section */}
-          <View style={[responsiveStyles.pointsSection, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <View style={responsiveStyles.pointsHeader}>
-              <Ionicons name="star" size={24} color={isDark ? colors.primaryButton : '#000'} />
-              <Text style={[responsiveStyles.pointsTitle, { color: isDark ? colors.primaryButton : '#000' }]}>
-                Puncte totale: {user?.puncte ?? 0}
-              </Text>
-            </View>
-            <Text style={[responsiveStyles.pointsInfo, { color: isDark ? colors.textMuted : '#000' }]}>
-              Poți folosi aceste puncte pentru reduceri sau beneficii exclusive.
-            </Text>
-          </View>
-
           {/* Logout Button */}
-          <TouchableOpacity 
-            style={responsiveStyles.logoutBtn} 
+          <PrimaryButton
+            title="Deconectare"
             onPress={handleLogout}
-            activeOpacity={0.85}
-          >
-            <LinearGradient
-              colors={['#FFEE00', '#FFEE00']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={responsiveStyles.logoutGradient}
-            >
-              <Ionicons name="log-out-outline" size={22} color="#000" />
-              <Text style={responsiveStyles.logoutText}>Deconectare</Text>
-            </LinearGradient>
-          </TouchableOpacity>
+            icon="log-out-outline"
+            style={responsiveStyles.logoutBtn}
+          />
           </Animated.View>
         </ScrollView>
       </View>
@@ -577,21 +628,21 @@ const getStyles = (isSmallScreen: boolean, scale: number) => StyleSheet.create({
   actionButton: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 16,
+    paddingVertical: 12,
     paddingHorizontal: 20,
-    borderRadius: 0,
-    borderWidth: 0,
-    borderBottomWidth: 1,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0,
-    shadowRadius: 0,
-    elevation: 0,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
     width: '100%',
   },
   actionIconContainer: {
-    width: 44,
-    height: 44,
+    width: 40,
+    height: 40,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
@@ -622,35 +673,6 @@ const getStyles = (isSmallScreen: boolean, scale: number) => StyleSheet.create({
     fontSize: isSmallScreen ? responsiveSize(15, scale) : responsiveSize(16, scale),
     fontWeight: '600',
   },
-  pointsSection: {
-    marginHorizontal: 0,
-    padding: responsiveSize(16, scale),
-    borderRadius: 0,
-    borderWidth: 0,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    marginBottom: responsiveSize(16, scale),
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0,
-    shadowRadius: 0,
-    elevation: 0,
-    width: '100%',
-  },
-  pointsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: responsiveSize(6, scale),
-    gap: responsiveSize(10, scale),
-  },
-  pointsTitle: { 
-    fontSize: isSmallScreen ? responsiveSize(16, scale) : responsiveSize(17, scale), 
-    fontWeight: "700",
-  },
-  pointsInfo: { 
-    fontSize: isSmallScreen ? responsiveSize(12, scale) : responsiveSize(13, scale),
-    lineHeight: responsiveSize(18, scale),
-  },
   logoutBtn: {
     marginHorizontal: 0,
     borderRadius: 0,
@@ -680,6 +702,57 @@ const getStyles = (isSmallScreen: boolean, scale: number) => StyleSheet.create({
 
 // Static styles that don't need responsive values
 const styles = StyleSheet.create({
+  cardsSwipeContainer: {
+    width: '100%',
+    marginBottom: 20,
+    alignItems: 'center',
+  },
+  cardsSwipeContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardPage: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 0,
+  },
+  cardDots: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+  },
+  cardDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  cardDotActive: {
+    backgroundColor: '#FFEE00',
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  cardSelectButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1.5,
+  },
+  cardSelectButtonSelected: {
+    opacity: 0.9,
+  },
+  cardSelectButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
   cardContainer: {
     marginHorizontal: 0,
     marginBottom: 16,
@@ -696,21 +769,21 @@ const styles = StyleSheet.create({
   actionButton: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 16,
+    paddingVertical: 12,
     paddingHorizontal: 20,
-    borderRadius: 0,
-    borderWidth: 0,
-    borderBottomWidth: 1,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0,
-    shadowRadius: 0,
-    elevation: 0,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
     width: '100%',
   },
   actionIconContainer: {
-    width: 44,
-    height: 44,
+    width: 40,
+    height: 40,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',

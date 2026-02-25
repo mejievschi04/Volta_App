@@ -13,11 +13,15 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { openBrowserAsync, WebBrowserPresentationStyle } from 'expo-web-browser';
-import { ThemeContext } from './context/ThemeContext';
-import Screen from './components/Screen';
-import { getColors } from './components/theme';
-import { apiClient } from '../lib/apiClient';
-import { useResponsive, responsiveSize, responsiveWidth, responsiveHeight } from './hooks/useResponsive';
+import { ThemeContext } from './_context/ThemeContext';
+import Screen from './_components/Screen';
+import { getColors } from './_components/theme';
+import { usePromotions } from '../hooks/usePromotions';
+import ApiErrorView from './_components/ApiErrorView';
+import EmptyState from './_components/EmptyState';
+import { SkeletonCard } from './_components/Skeleton';
+import { useResponsive, responsiveSize, responsiveWidth, responsiveHeight } from './_hooks/useResponsive';
+import { resolveImageUrl } from '../lib/apiClient';
 
 type Promo = { 
   id: string; 
@@ -33,107 +37,67 @@ export default function Promotii() {
   const { theme } = useContext(ThemeContext);
   const colors = getColors(theme);
   const { width, height, isSmallScreen, scale } = useResponsive();
-  const [promos, setPromos] = useState<Promo[]>([]);
   const [timers, setTimers] = useState<Record<string, { days: number; hours: number; minutes: number; expired: boolean; expiredDays: number }>>({});
-  const [loading, setLoading] = useState(true);
-  
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;
+
+  const { data: rawPromos, isLoading: loading, isError: promotionsError, error: promotionsErrorObj, refetch: refetchPromotions } = usePromotions();
+
+  const promos = useMemo(() => {
+    const mappedData = (rawPromos || []).map((promo: any) => ({
+      ...promo,
+      image: promo.image_url || promo.image,
+      link: promo.link,
+    }));
+    const now = Date.now();
+    return mappedData
+      .filter((promo: any) => {
+        const deadlineTime = new Date(promo.deadline).getTime();
+        const isExpired = deadlineTime <= now;
+        if (!isExpired) return true;
+        const expiredDays = Math.floor((now - deadlineTime) / (1000 * 60 * 60 * 24));
+        return expiredDays < 1;
+      })
+      .sort((a: any, b: any) => {
+        const aDeadline = new Date(a.deadline).getTime();
+        const bDeadline = new Date(b.deadline).getTime();
+        const aExpired = aDeadline <= Date.now();
+        const bExpired = bDeadline <= Date.now();
+        if (!aExpired && bExpired) return -1;
+        if (aExpired && !bExpired) return 1;
+        if (!aExpired && !bExpired) return aDeadline - bDeadline;
+        return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+      });
+  }, [rawPromos]);
   
   const ITEM_HEIGHT = useMemo(() => Math.round(responsiveHeight(28)), [height]);
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        tension: 50,
-        friction: 8,
-        useNativeDriver: true,
-      }),
+      Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+      Animated.spring(slideAnim, { toValue: 0, tension: 50, friction: 8, useNativeDriver: true }),
     ]).start();
   }, []);
 
-  const fetchPromos = useCallback(async () => {
-    try {
-      setLoading(true);
-      const { data, error } = await apiClient.getPromotions();
-
-      if (error) throw new Error(error);
-      
-      // Map image_url to image for compatibility and include link
-      const mappedData = (data || []).map((promo: any) => ({
-        ...promo,
-        image: promo.image_url || promo.image,
-        link: promo.link,
-      }));
-      
-      console.log('[Promotii] Promoții primite:', mappedData);
-      console.log('[Promotii] Image URLs:', mappedData.map((p: any) => p.image || p.image_url));
-
-      // Filter out promotions expired more than 1 day ago and sort active ones first
-      const now = Date.now();
-      const filteredAndSorted = mappedData
-        .filter((promo) => {
-          const deadlineTime = new Date(promo.deadline).getTime();
-          const isExpired = deadlineTime <= now;
-          if (!isExpired) return true; // Keep active promotions
-          const expiredDays = Math.floor((now - deadlineTime) / (1000 * 60 * 60 * 24));
-          return expiredDays < 1; // Keep expired only if less than 1 day
-        })
-        .sort((a, b) => {
-          const aDeadline = new Date(a.deadline).getTime();
-          const bDeadline = new Date(b.deadline).getTime();
-          const aExpired = aDeadline <= now;
-          const bExpired = bDeadline <= now;
-          
-          // Active promotions first
-          if (!aExpired && bExpired) return -1;
-          if (aExpired && !bExpired) return 1;
-          
-          // If both active, sort by deadline (soonest first)
-          if (!aExpired && !bExpired) {
-            return aDeadline - bDeadline;
-          }
-          
-          // If both expired, sort by created_at (newest first)
-          const aCreated = new Date(a.created_at || 0).getTime();
-          const bCreated = new Date(b.created_at || 0).getTime();
-          return bCreated - aCreated;
-        });
-      
-      // Calculate initial timers immediately
-      const initialTimers: Record<string, { days: number; hours: number; minutes: number; expired: boolean; expiredDays: number }> = {};
-      filteredAndSorted.forEach((promo) => {
-        const deadlineTime = new Date(promo.deadline).getTime();
-        const distance = deadlineTime - now;
-        if (distance <= 0) {
-          const expiredDays = Math.floor((now - deadlineTime) / (1000 * 60 * 60 * 24));
-          initialTimers[promo.id] = { days: 0, hours: 0, minutes: 0, expired: true, expiredDays };
-        } else {
-          const days = Math.floor(distance / (1000 * 60 * 60 * 24));
-          const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-          const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-          initialTimers[promo.id] = { days, hours, minutes, expired: false, expiredDays: 0 };
-        }
-      });
-      
-      setPromos(filteredAndSorted);
-      setTimers(initialTimers);
-    } catch (err) {
-      console.error('Eroare la preluarea promoțiilor:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    fetchPromos();
-  }, [fetchPromos]);
+    if (promos.length === 0) return;
+    const now = Date.now();
+    const initialTimers: Record<string, { days: number; hours: number; minutes: number; expired: boolean; expiredDays: number }> = {};
+    promos.forEach((promo: Promo) => {
+      const deadlineTime = new Date(promo.deadline).getTime();
+      const distance = deadlineTime - now;
+      if (distance <= 0) {
+        const expiredDays = Math.floor((now - deadlineTime) / (1000 * 60 * 60 * 24));
+        initialTimers[promo.id] = { days: 0, hours: 0, minutes: 0, expired: true, expiredDays };
+      } else {
+        const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+        initialTimers[promo.id] = { days, hours, minutes, expired: false, expiredDays: 0 };
+      }
+    });
+    setTimers(initialTimers);
+  }, [promos]);
 
   useEffect(() => {
     if (promos.length === 0) return;
@@ -141,7 +105,6 @@ export default function Promotii() {
     const interval = setInterval(() => {
       const now = new Date().getTime();
       const updated: Record<string, { days: number; hours: number; minutes: number; expired: boolean; expiredDays: number }> = {};
-      const promosToKeep: Promo[] = [];
       
       promos.forEach((promo: Promo) => {
         const deadlineTime = new Date(promo.deadline).getTime();
@@ -152,22 +115,14 @@ export default function Promotii() {
           // Only keep if expired less than 1 day ago
           if (expiredDays < 1) {
             updated[promo.id] = { days: 0, hours: 0, minutes: 0, expired: true, expiredDays };
-            promosToKeep.push(promo);
           }
-          // If expired more than 1 day, don't add to updated or promosToKeep (will be filtered out)
         } else {
           const days = Math.floor(distance / (1000 * 60 * 60 * 24));
           const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
           const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
           updated[promo.id] = { days, hours, minutes, expired: false, expiredDays: 0 };
-          promosToKeep.push(promo);
         }
       });
-      
-      // Remove promotions expired more than 1 day
-      if (promosToKeep.length !== promos.length) {
-        setPromos(promosToKeep);
-      }
       
       setTimers(updated as any);
     }, 1000);
@@ -176,7 +131,7 @@ export default function Promotii() {
   }, [promos]);
 
   const getImageUri = useCallback((promo: Promo) => {
-    return promo.image || '';
+    return resolveImageUrl(promo.image) || '';
   }, []);
 
   // Get responsive styles
@@ -211,20 +166,28 @@ export default function Promotii() {
     <Screen>
       <View style={[responsiveStyles.container, { backgroundColor: colors.background }]}>
 
-        {loading ? (
-          <View style={responsiveStyles.loadingContainer}>
-            <ActivityIndicator color={colors.text} size="large" />
-            <Text style={[responsiveStyles.loadingText, { color: colors.text }]}>
-              Se încarcă promoțiile...
-            </Text>
+        {promotionsError ? (
+          <View style={[responsiveStyles.emptyContainer, { justifyContent: 'center', paddingVertical: 40 }]}>
+            <ApiErrorView
+              message={promotionsErrorObj?.message ?? undefined}
+              onRetry={() => refetchPromotions()}
+            />
           </View>
+        ) : loading ? (
+          <ScrollView contentContainerStyle={responsiveStyles.list} showsVerticalScrollIndicator={false}>
+            <SkeletonCard width={width - 40} height={ITEM_HEIGHT} />
+            <SkeletonCard width={width - 40} height={ITEM_HEIGHT} />
+            <SkeletonCard width={width - 40} height={ITEM_HEIGHT} />
+          </ScrollView>
         ) : promos.length === 0 ? (
-          <View style={responsiveStyles.emptyContainer}>
-            <Ionicons name="pricetag-outline" size={64} color={colors.textMuted} />
-            <Text style={[responsiveStyles.emptyText, { color: colors.textMuted }]}>
-              Momentan nu există promoții active.
-            </Text>
-          </View>
+          <EmptyState
+            icon="pricetag-outline"
+            title={
+              (rawPromos?.length ?? 0) > 0
+                ? 'Toate promoțiile au expirat.'
+                : 'Momentan nu există promoții active.'
+            }
+          />
         ) : promos.length > 0 && promos.some(p => !timers[p.id]) ? (
           <View style={responsiveStyles.loadingContainer}>
             <ActivityIndicator color={colors.text} size="large" />

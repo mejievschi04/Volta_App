@@ -9,6 +9,8 @@ import {
   Animated,
   Dimensions,
   Modal,
+  Easing,
+  StatusBar,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, usePathname } from 'expo-router';
@@ -16,10 +18,10 @@ import { useRouter, usePathname } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ThemeContext } from '../context/ThemeContext';
-import { UserContext } from '../context/UserContext';
+import * as NavigationBar from 'expo-navigation-bar';
+import { ThemeContext } from '../_context/ThemeContext';
+import { UserContext } from '../_context/UserContext';
 import { getColors } from './theme';
-import DiscountCard from './DiscountCard';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const isSmallScreen = SCREEN_WIDTH < 375;
@@ -29,7 +31,7 @@ export default function BottomMenu() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { theme } = useContext(ThemeContext);
-  const { user } = useContext(UserContext);
+  const { user, selectedCardPercent } = useContext(UserContext);
   const colors = getColors(theme);
 
   const insetsBottom = Math.max(8, insets.bottom);
@@ -78,7 +80,81 @@ export default function BottomMenu() {
 
   // State for discount card modal
   const [showDiscountCard, setShowDiscountCard] = useState(false);
-  
+  const modalOverlayAnim = useRef(new Animated.Value(0)).current;
+  const modalContentScale = useRef(new Animated.Value(0.85)).current;
+  const modalContentOpacity = useRef(new Animated.Value(0)).current;
+
+  // Când modalul e deschis: ascunde bara de status ca modalul să acopere tot ecranul. La închidere refă ascunderea (app-ul folosește bare ascunse).
+  useEffect(() => {
+    if (showDiscountCard) {
+      StatusBar.setHidden(true, 'fade');
+      if (Platform.OS === 'android') StatusBar.setBackgroundColor('transparent');
+    } else {
+      // Restabilire: barele rămân ascunse ca în restul app-ului
+      StatusBar.setHidden(true, 'fade');
+      if (Platform.OS === 'android') {
+        StatusBar.setBackgroundColor('transparent');
+        NavigationBar.setVisibilityAsync('hidden');
+      }
+    }
+    return () => {
+      StatusBar.setHidden(true, 'fade');
+      if (Platform.OS === 'android') NavigationBar.setVisibilityAsync('hidden');
+    };
+  }, [showDiscountCard]);
+
+  // Animație deschidere modal – fade + scale cu easing
+  useEffect(() => {
+    if (showDiscountCard) {
+      modalOverlayAnim.setValue(0);
+      modalContentScale.setValue(0.88);
+      modalContentOpacity.setValue(0);
+      Animated.parallel([
+        Animated.timing(modalOverlayAnim, {
+          toValue: 1,
+          duration: 260,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(modalContentOpacity, {
+          toValue: 1,
+          duration: 220,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.spring(modalContentScale, {
+          toValue: 1,
+          tension: 72,
+          friction: 11,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [showDiscountCard]);
+
+  const closeDiscountModal = () => {
+    Animated.parallel([
+      Animated.timing(modalOverlayAnim, {
+        toValue: 0,
+        duration: 200,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(modalContentOpacity, {
+        toValue: 0,
+        duration: 180,
+        easing: Easing.in(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.timing(modalContentScale, {
+        toValue: 0.92,
+        duration: 200,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start(() => setShowDiscountCard(false));
+  };
+
   // Find active item index and animate indicator
   useEffect(() => {
     const activeIndex = menuItems.findIndex(item => 
@@ -118,9 +194,9 @@ export default function BottomMenu() {
     
     const isActive = Boolean(pathname && route && pathname.startsWith(route));
     const isDark = theme === 'dark';
-    const iconColor = isActive ? colors.text : '#4D4D4D';
-    const textColor = isActive ? colors.text : '#4D4D4D';
-    const iconOpacity = isActive ? 1 : 0.72;
+    const iconColor = isActive ? colors.text : colors.navBarInactive;
+    const textColor = isActive ? colors.text : colors.navBarInactive;
+    const iconOpacity = isActive ? 1 : 0.88;
 
     // Hover animation - slide line from bottom
     useEffect(() => {
@@ -200,6 +276,9 @@ export default function BottomMenu() {
           isHovered && styles.itemHover,
         ]}
         android_ripple={{ color: 'rgba(255,238,0,0.1)', borderless: false }}
+        accessibilityLabel={label}
+        accessibilityRole="button"
+        accessibilityHint={`Navighează la ${label}`}
       >
         {/* Slide line indicator for hover */}
         <Animated.View
@@ -238,7 +317,7 @@ export default function BottomMenu() {
                 backgroundColor: 'transparent',
                 fontSize: labelSize,
                 fontWeight: isActive ? '600' : '400',
-                opacity: isActive ? 1 : 0.75,
+                opacity: isActive ? 1 : 0.9,
               },
             ]}
           >
@@ -250,14 +329,10 @@ export default function BottomMenu() {
   };
 
   const isDark = theme === 'dark';
-  
-  // Calculate indicator position - accounting for menu padding and item margins
-  // Note: We have 4 menu items + 1 central button, so we need to account for 5 positions visually
-  // But indicator only moves between the 4 menu items
-  const menuPaddingH = isSmallScreen ? 8 : isMediumScreen ? 12 : 16;
-  const itemMarginH = isSmallScreen ? 3 : isMediumScreen ? 4 : 6;
-  const totalVisualItems = 5; // 4 menu items + 1 central button
-  const availableWidth = SCREEN_WIDTH - (menuPaddingH * 2);
+  const menuWidth = SCREEN_WIDTH;
+  const menuPaddingH = isSmallScreen ? 6 : 10;
+  const totalVisualItems = 5;
+  const availableWidth = menuWidth - (menuPaddingH * 2);
   const visualItemWidth = availableWidth / totalVisualItems;
   const indicatorWidth = visualItemWidth * 0.8; // 80% of item width to cover the element
   const indicatorLeft = activeIndicatorPosition.interpolate({
@@ -273,6 +348,24 @@ export default function BottomMenu() {
     inputRange: menuItems.map((_, index) => index),
     outputRange: menuItems.map(() => indicatorWidth),
   });
+
+  // Barcode mare pentru modalul card reducere (doar barcode pe fundal negru)
+  const renderBarcode = (barHeight: number, barScale: number = 2.5) => (
+    <View style={barcodeStyles.container}>
+      {Array.from({ length: 44 }).map((_, i) => (
+        <View
+          key={i}
+          style={[
+            barcodeStyles.bar,
+            {
+              width: ((i % 5 === 0 || i % 7 === 0) ? 2 : 1.5) * barScale,
+              height: barHeight,
+            },
+          ]}
+        />
+      ))}
+    </View>
+  );
   
   if (!menuVisible) {
     return null;
@@ -281,34 +374,24 @@ export default function BottomMenu() {
   return (
     <View style={styles.container} pointerEvents="box-none">
       <View style={[styles.menu, { 
-        marginBottom: 0,
         paddingBottom: Math.max(insetsBottom, 8),
-        backgroundColor: colors.surface,
-        borderColor: colors.primaryButton,
-        shadowColor: colors.primaryButton,
+        backgroundColor: colors.navBarBg,
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: colors.navBarBorder,
       }]}>
-        {/* Subtle overlay for modern glass effect */}
         <View style={[
           styles.overlay,
-          { 
-            backgroundColor: isDark 
-              ? 'rgba(255, 255, 255, 0.03)' 
-              : 'rgba(0, 0, 0, 0.02)',
-          }
+          { backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.015)' },
         ]} />
         
-        {/* Active indicator that slides between items - centered on icon */}
         <Animated.View
           style={[
             styles.activeIndicator,
-            {
-              left: indicatorLeft,
-              width: indicatorWidthAnimated,
-            },
+            { left: indicatorLeft, width: indicatorWidthAnimated },
           ]}
         />
         
-        {/* Left side menu items */}
+        {/* Stânga: Acasă, Profil */}
         {menuItems.slice(0, 2).map((item, index) => (
           <Item
             key={item.id}
@@ -321,14 +404,16 @@ export default function BottomMenu() {
           />
         ))}
         
-        {/* Central discount card button */}
+        {/* Buton central Card – proeminent, galben Volta */}
         <View style={styles.centralButtonContainer}>
-          {/* Glow effect behind button */}
           <View style={styles.centralButtonGlow} />
           <TouchableOpacity
-            style={[styles.centralButton, { borderColor: colors.surface }]}
+            style={[styles.centralButton, { borderColor: colors.navBarBg }]}
             onPress={() => setShowDiscountCard(true)}
             activeOpacity={0.85}
+            accessibilityLabel="Card reducere"
+            accessibilityRole="button"
+            accessibilityHint="Deschide cardul de reducere"
           >
             <LinearGradient
               colors={['#FFEE00', '#FFE844', '#FFD700', '#FFC700']}
@@ -337,12 +422,12 @@ export default function BottomMenu() {
               locations={[0, 0.3, 0.7, 1]}
               style={styles.centralButtonGradient}
             >
-              <Ionicons name="card" size={28} color="#000" />
+              <Ionicons name="card" size={32} color="#000" />
             </LinearGradient>
           </TouchableOpacity>
         </View>
         
-        {/* Right side menu items */}
+        {/* Dreapta: Blog, Hartă */}
         {menuItems.slice(2).map((item, index) => (
           <Item
             key={item.id}
@@ -355,36 +440,60 @@ export default function BottomMenu() {
           />
         ))}
         
-        {/* Discount Card Modal */}
+        {/* Discount Card Modal – animație deschidere/închidere */}
         <Modal
           visible={showDiscountCard}
           transparent={true}
-          animationType="fade"
-          onRequestClose={() => setShowDiscountCard(false)}
+          animationType="none"
+          onRequestClose={closeDiscountModal}
+          statusBarTranslucent
         >
-          <TouchableOpacity
-            style={styles.modalOverlay}
-            activeOpacity={1}
-            onPress={() => setShowDiscountCard(false)}
-          >
-            <Pressable
-              style={[styles.modalContent, { backgroundColor: colors.surface }]}
-              onPress={(e) => e.stopPropagation()}
+          {/* Wrapper full-screen – fundal acoperă și bara de sus */}
+          <View style={[styles.modalRoot, { backgroundColor: theme === 'dark' ? '#1a1a1a' : '#FFFFFF' }]}>
+            <View style={styles.modalContainer}>
+            <TouchableOpacity
+              style={StyleSheet.absoluteFill}
+              activeOpacity={1}
+              onPress={closeDiscountModal}
+            />
+            <Animated.View
+              style={[styles.modalOverlay, { opacity: modalOverlayAnim, backgroundColor: theme === 'dark' ? 'rgba(0, 0, 0, 0.7)' : 'transparent' }]}
+              pointerEvents="none"
+            />
+            <Animated.View
+              style={[
+                styles.modalContentWrapper,
+                {
+                  opacity: modalContentOpacity,
+                  transform: [{ scale: modalContentScale }],
+                },
+              ]}
+              pointerEvents="box-none"
             >
               <TouchableOpacity
-                style={styles.closeButton}
-                onPress={() => setShowDiscountCard(false)}
+                style={[styles.modalCloseButton, { top: Math.max(insets.top, 12) + 12 }]}
+                onPress={closeDiscountModal}
+                activeOpacity={0.8}
+                accessibilityLabel="Închide"
+                accessibilityRole="button"
               >
-                <Ionicons name="close" size={24} color={colors.text} />
+                <Ionicons name="close" size={28} color={colors.text} />
               </TouchableOpacity>
-              <DiscountCard
-                name={user?.prenume && user?.nume ? `${user.prenume} ${user.nume}`.toUpperCase() : "VOLTA USER"}
-                discountValue={10}
-                cardCode={`VOLTA-${user?.id ? String(user.id).slice(0, 4).toUpperCase() : "0000"}`}
-                barcodeValue={user?.id ? String(user.id).slice(0, 12) : "458712345678"}
-              />
-            </Pressable>
-          </TouchableOpacity>
+              <View style={styles.barcodeOnlyContent}>
+                <Text style={[styles.barcodeCodeLabel, { color: colors.textMuted }]}>
+                  Reducere {selectedCardPercent}%
+                </Text>
+                <Text style={[styles.barcodeCode, { color: colors.text }]}>
+                  VOLTA-{user?.id ? String(user.id).slice(0, 4).toUpperCase() : "0000"}
+                </Text>
+                <View style={styles.barcodeOnlyWrap}>
+                  {renderBarcode(100, 2.5)}
+                </View>
+                <Text style={[styles.barcodeOnlyHint, { color: colors.textMuted }]}>Apasă în afară pentru închidere</Text>
+              </View>
+            </Animated.View>
+            </View>
+          </View>
         </Modal>
       </View>
     </View>
@@ -403,22 +512,10 @@ const styles = StyleSheet.create({
   },
   menu: {
     flexDirection: 'row',
-    paddingTop: isSmallScreen ? 12 : isMediumScreen ? 14 : 16,
-    paddingBottom: isSmallScreen ? 12 : isMediumScreen ? 14 : 16,
-    paddingHorizontal: isSmallScreen ? 8 : isMediumScreen ? 12 : 16,
-    borderTopLeftRadius: isSmallScreen ? 20 : isMediumScreen ? 22 : 24,
-    borderTopRightRadius: isSmallScreen ? 20 : isMediumScreen ? 22 : 24,
     width: '100%',
-    maxWidth: 1100,
-    borderWidth: 0,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0, 0, 0, 0.08)',
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: -4 },
-    elevation: 8,
-    marginHorizontal: 0,
+    paddingTop: isSmallScreen ? 12 : 14,
+    paddingBottom: isSmallScreen ? 12 : 14,
+    paddingHorizontal: isSmallScreen ? 6 : 10,
     position: 'relative',
     overflow: 'visible',
   },
@@ -430,13 +527,13 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: isSmallScreen ? 8 : isMediumScreen ? 10 : 12,
-    marginHorizontal: isSmallScreen ? 3 : isMediumScreen ? 4 : 6,
-    borderRadius: 14,
+    paddingVertical: isSmallScreen ? 10 : 12,
+    marginHorizontal: 2,
+    borderRadius: 16,
     backgroundColor: 'transparent',
     position: 'relative',
     overflow: 'visible',
-    minHeight: isSmallScreen ? 60 : isMediumScreen ? 65 : 70,
+    minHeight: isSmallScreen ? 56 : isMediumScreen ? 60 : 64,
   },
   diamondBackground: {
     position: 'absolute',
@@ -462,9 +559,7 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     elevation: 10,
   },
-  itemHover: {
-    // Hover effect is now handled by animations
-  },
+  itemHover: {},
   slideLine: {
     position: 'absolute',
     bottom: 0,
@@ -483,15 +578,16 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     shadowColor: '#FFEE00',
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 12,
+    shadowOpacity: 0.8,
+    shadowRadius: 8,
     elevation: 8,
   },
   label: {
-    marginTop: isSmallScreen ? 4 : 6,
+    marginTop: isSmallScreen ? 4 : 5,
     backgroundColor: 'transparent',
     fontWeight: '600',
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
+    fontSize: 12,
   },
   centralButtonContainer: {
     flex: 1,
@@ -502,63 +598,124 @@ const styles = StyleSheet.create({
   },
   centralButtonGlow: {
     position: 'absolute',
-    width: isSmallScreen ? 70 : isMediumScreen ? 75 : 80,
-    height: isSmallScreen ? 70 : isMediumScreen ? 75 : 80,
-    borderRadius: (isSmallScreen ? 70 : isMediumScreen ? 75 : 80) / 2,
+    width: isSmallScreen ? 80 : isMediumScreen ? 88 : 96,
+    height: isSmallScreen ? 80 : isMediumScreen ? 88 : 96,
+    borderRadius: (isSmallScreen ? 80 : isMediumScreen ? 88 : 96) / 2,
     backgroundColor: '#FFEE00',
-    opacity: 0.4,
-    marginTop: -28,
-    shadowColor: '#FFEE00',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.8,
-    shadowRadius: 20,
-    elevation: 0,
+    opacity: 0.35,
+    marginTop: -42,
+    shadowColor: '#B8860B',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    elevation: 4,
     zIndex: 1002,
   },
   centralButton: {
-    width: isSmallScreen ? 56 : isMediumScreen ? 60 : 64,
-    height: isSmallScreen ? 56 : isMediumScreen ? 60 : 64,
-    borderRadius: (isSmallScreen ? 56 : isMediumScreen ? 60 : 64) / 2,
+    width: isSmallScreen ? 64 : isMediumScreen ? 70 : 76,
+    height: isSmallScreen ? 64 : isMediumScreen ? 70 : 76,
+    borderRadius: (isSmallScreen ? 64 : isMediumScreen ? 70 : 76) / 2,
     backgroundColor: '#FFEE00',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: -28, // Button aligned with navbar bottom, half outside
+    marginTop: -42,
     zIndex: 1003,
-    shadowColor: '#000',
+    shadowColor: 'rgba(0,0,0,0.35)',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.4,
-    shadowRadius: 20,
-    elevation: 15,
+    shadowRadius: 14,
+    elevation: 18,
     borderWidth: 4,
     overflow: 'visible',
   },
   centralButtonGradient: {
     width: '100%',
     height: '100%',
-    borderRadius: (isSmallScreen ? 56 : isMediumScreen ? 60 : 64) / 2,
+    borderRadius: (isSmallScreen ? 64 : isMediumScreen ? 70 : 76) / 2,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 0,
   },
-  modalOverlay: {
+  modalRoot: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+  },
+  modalContainer: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'transparent',
   },
-  modalContent: {
-    width: '90%',
-    maxWidth: 400,
-    borderRadius: 20,
-    padding: 20,
-    alignItems: 'center',
-    position: 'relative',
-  },
-  closeButton: {
+  modalTopBar: {
     position: 'absolute',
-    top: 12,
-    right: 12,
-    padding: 8,
+    top: 0,
+    left: 0,
+    right: 0,
     zIndex: 10,
+  },
+  modalOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  modalContentWrapper: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalCloseButton: {
+    position: 'absolute',
+    right: 20,
+    padding: 10,
+    zIndex: 15,
+  },
+  barcodeOnlyContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    maxWidth: 340,
+  },
+  barcodeCodeLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.8,
+    marginBottom: 4,
+    textTransform: 'uppercase',
+  },
+  barcodeCode: {
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: 2,
+    marginBottom: 24,
+  },
+  barcodeOnlyWrap: {
+    width: '100%',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  barcodeOnlyHint: {
+    fontSize: 12,
+    fontWeight: '500',
+    letterSpacing: 0.3,
+  },
+});
+
+const barcodeStyles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 1,
+  },
+  bar: {
+    backgroundColor: '#000',
+    borderRadius: 0,
   },
 });

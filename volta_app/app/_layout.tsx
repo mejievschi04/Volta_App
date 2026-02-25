@@ -1,73 +1,87 @@
 import React, { useContext, useEffect, useRef } from 'react';
-import { Slot, usePathname } from 'expo-router';
+import { Slot, usePathname, useRouter } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View, StyleSheet, StatusBar, Platform, AppState } from 'react-native';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import * as NavigationBar from 'expo-navigation-bar';
-import BottomMenu from './components/BottomMenu';
-import { UserProvider } from './context/UserContext'; // import contextul global
-import { ThemeProvider, ThemeContext } from './context/ThemeContext';
-import { getColors } from './components/theme';
+import BottomMenu from './_components/BottomMenu';
+import { UserProvider, UserContext } from './_context/UserContext';
+import { ThemeProvider, ThemeContext } from './_context/ThemeContext';
+import { getColors } from './_components/theme';
+import { setOnUnauthorized } from '../lib/apiClient';
+import { useNotifications } from '../hooks/useNotifications';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60 * 1000,
+      retry: 1,
+    },
+  },
+});
 
 function ThemedLayout() {
   const { theme } = useContext(ThemeContext);
+  const { setUser, setToken } = useContext(UserContext);
+  const router = useRouter();
   const colors = getColors(theme);
   const pathname = usePathname();
   const appState = useRef(AppState.currentState);
+
+  useNotifications();
+
+  // La 401 (token invalid/expirat): logout și redirect la Login
+  useEffect(() => {
+    setOnUnauthorized(() => {
+      setUser(null);
+      setToken(null);
+      router.replace('/Login');
+    });
+    return () => setOnUnauthorized(null);
+  }, [setUser, setToken, router]);
 
   // Rute unde BottomMenu nu trebuie afișat
   const hideMenuRoutes = ['/Login', '/Loading'];
   const shouldShowMenu = pathname && pathname !== '/' && !hideMenuRoutes.includes(pathname);
 
-  // Function to hide status bar and navigation bar
-  const hideBars = () => {
+  // Ascunde bara de status și bara de navigare (sistem) când ești în app
+  const hideSystemBars = () => {
     StatusBar.setHidden(true, 'fade');
     if (Platform.OS === 'android') {
       NavigationBar.setVisibilityAsync('hidden');
     }
   };
 
-  // Hide status bar and navigation bar on mount and pathname change
+  const showSystemBars = () => {
+    StatusBar.setHidden(false, 'fade');
+    if (Platform.OS === 'android') {
+      NavigationBar.setVisibilityAsync('visible');
+    }
+  };
+
   useEffect(() => {
-    hideBars();
+    hideSystemBars();
+    return () => showSystemBars();
+  }, []);
+
+  useEffect(() => {
+    hideSystemBars();
   }, [pathname]);
 
-  // Handle app state changes (background/foreground)
+  // Când revii în app din background, ascunde din nou barele
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextAppState => {
-      if (
-        appState.current.match(/inactive|background/) &&
-        nextAppState === 'active'
-      ) {
-        // App has come to the foreground, hide bars again with a small delay
-        // to ensure the app is fully in foreground
-        setTimeout(() => {
-          hideBars();
-        }, 100);
+      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+        setTimeout(hideSystemBars, 100);
       }
       appState.current = nextAppState;
     });
-
-    return () => {
-      subscription?.remove();
-    };
-  }, []);
-
-  // Initial hide on mount
-  useEffect(() => {
-    hideBars();
-
-    return () => {
-      // Restore status bar and navigation bar when component unmounts
-      StatusBar.setHidden(false, 'fade');
-      if (Platform.OS === 'android') {
-        NavigationBar.setVisibilityAsync('visible');
-      }
-    };
+    return () => subscription?.remove();
   }, []);
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, paddingTop: 0, paddingBottom: shouldShowMenu ? 80 : 0 }]}>
-      <StatusBar hidden={true} />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar hidden />
       <Slot />
       {shouldShowMenu && <BottomMenu />}
     </View>
@@ -76,13 +90,15 @@ function ThemedLayout() {
 
 export default function RootLayout() {
   return (
-    <SafeAreaProvider>
-      <ThemeProvider>
-        <UserProvider>
-          <ThemedLayout />
-        </UserProvider>
-      </ThemeProvider>
-    </SafeAreaProvider>
+    <QueryClientProvider client={queryClient}>
+      <SafeAreaProvider>
+        <ThemeProvider>
+          <UserProvider>
+            <ThemedLayout />
+          </UserProvider>
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </QueryClientProvider>
   );
 }
 

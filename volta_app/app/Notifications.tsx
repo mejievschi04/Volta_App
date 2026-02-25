@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useContext, useCallback, useRef, useMemo } from 'react';
 import { 
   View, 
   Text, 
@@ -16,10 +16,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import * as ExpoNotifications from 'expo-notifications';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { ThemeContext } from './context/ThemeContext';
-import { apiClient } from '../lib/apiClient';
-import Screen from './components/Screen';
-import { getColors } from './components/theme';
+import { ThemeContext } from './_context/ThemeContext';
+import { useNotificationsQuery } from '../hooks/useNotificationsApi';
+import Screen from './_components/Screen';
+import ApiErrorView from './_components/ApiErrorView';
+import EmptyState from './_components/EmptyState';
+import { getColors } from './_components/theme';
 
 const { width } = Dimensions.get('window');
 const isSmallScreen = width < 375;
@@ -37,67 +39,76 @@ export default function Notifications() {
   const { theme } = useContext(ThemeContext);
   const colors = getColors(theme);
   const isDark = theme === 'dark';
-  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [selected, setSelected] = useState<Notification | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [readIds, setReadIds] = useState<Set<string>>(new Set());
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
   const router = useRouter();
   
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;
 
+  const READ_IDS_KEY = 'notifications_read_ids';
+  const DELETED_IDS_KEY = 'notifications_deleted_ids';
+
+  const { data: apiNotifications, isLoading: isLoadingApi, isError: notificationsError, error: notificationsErrorObj, refetch } = useNotificationsQuery();
+
+  useFocusEffect(useCallback(() => { refetch(); }, [refetch]));
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await AsyncStorage.getItem(READ_IDS_KEY);
+        setReadIds(r ? new Set(JSON.parse(r) as string[]) : new Set());
+        const d = await AsyncStorage.getItem(DELETED_IDS_KEY);
+        setDeletedIds(d ? new Set(JSON.parse(d) as string[]) : new Set());
+      } catch {}
+    })();
+  }, []);
+
+  const notifications = useMemo(() => {
+    const raw = Array.isArray(apiNotifications) ? apiNotifications : [];
+    const filtered = raw.filter((n: any) => !deletedIds.has(String(n?.id ?? '')));
+    return filtered.map((n: any) => ({
+      id: String(n?.id ?? ''),
+      title: n?.title ?? '',
+      message: n?.messsage ?? n?.message ?? '',
+      read: readIds.has(String(n?.id ?? '')),
+      type: n?.type,
+      created_at: n?.created_at,
+    })) as Notification[];
+  }, [apiNotifications, readIds, deletedIds]);
+
+  function getDateGroup(created_at?: string): string {
+    if (!created_at) return 'Mai devreme';
+    const d = new Date(created_at);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const dDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    if (dDate.getTime() === today.getTime()) return 'Astăzi';
+    if (dDate.getTime() === yesterday.getTime()) return 'Ieri';
+    return 'Mai devreme';
+  }
+
+  const notificationsByDate = useMemo(() => {
+    const order = ['Astăzi', 'Ieri', 'Mai devreme'];
+    const groups: Record<string, Notification[]> = { Astăzi: [], Ieri: [], 'Mai devreme': [] };
+    notifications.forEach((n) => {
+      const key = getDateGroup(n.created_at);
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(n);
+    });
+    return order.map((key) => ({ key, items: groups[key] || [] })).filter((g) => g.items.length > 0);
+  }, [notifications]);
+
+  const isLoading = isLoadingApi;
+
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        tension: 50,
-        friction: 8,
-        useNativeDriver: true,
-      }),
+      Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+      Animated.spring(slideAnim, { toValue: 0, tension: 50, friction: 8, useNativeDriver: true }),
     ]).start();
-  }, []);
-
-  const demoNotifications: Notification[] = [
-    {
-      id: '1',
-      title: 'Reducere specială!',
-      message: 'Ai 10% reducere la următoarea achiziție Volta!',
-      read: false,
-    },
-    {
-      id: '2',
-      title: 'Program nou magazin',
-      message: 'Volta Centru este deschis acum până la ora 20:00!',
-      read: true,
-    },
-  ];
-
-  useEffect(() => {
-    loadNotifications();
-  }, []);
-
-  // Re-load notifications when screen comes into focus
-  useFocusEffect(
-    useCallback(() => {
-      loadNotifications();
-    }, [loadNotifications])
-  );
-
-  const READ_IDS_KEY = 'notifications_read_ids';
-
-  const getReadIds = useCallback(async (): Promise<Set<string>> => {
-    try {
-      const raw = await AsyncStorage.getItem(READ_IDS_KEY);
-      if (!raw) return new Set();
-      const arr = JSON.parse(raw) as string[];
-      return new Set(arr);
-    } catch {
-      return new Set();
-    }
   }, []);
 
   const saveReadIds = useCallback(async (ids: Set<string>) => {
@@ -106,110 +117,23 @@ export default function Notifications() {
     } catch {}
   }, []);
 
-  const loadNotifications = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const DELETED_IDS_KEY = 'notifications_deleted_ids';
-      const getDeletedIds = async (): Promise<Set<string>> => {
-        try {
-          const raw = await AsyncStorage.getItem(DELETED_IDS_KEY);
-          if (!raw) return new Set();
-          const arr = JSON.parse(raw) as string[];
-          return new Set(arr);
-        } catch {
-          return new Set();
-        }
-      };
-
-      const { data, error } = await apiClient.getNotifications();
-
-      if (error) {
-        console.error('Eroare API:', error);
-        const stored = await AsyncStorage.getItem('notifications');
-        if (stored) {
-          setNotifications(JSON.parse(stored) as Notification[]);
-        } else {
-          await AsyncStorage.setItem('notifications', JSON.stringify(demoNotifications));
-          setNotifications(demoNotifications);
-        }
-        return;
-      }
-
-      const readIds = await getReadIds();
-      const deletedIds = await getDeletedIds();
-      
-      // Filter out deleted notifications
-      const filtered = (data ?? []).filter((n: any) => {
-        const idStr = String(n?.id ?? '');
-        return !deletedIds.has(idStr);
-      });
-
-      const mapped = filtered.map((n: any) => {
-        const msg = n?.messsage ?? n?.message ?? '';
-        const idStr = String(n?.id ?? '');
-        return {
-          id: idStr,
-          title: n?.title ?? '',
-          message: msg,
-          read: readIds.has(idStr),
-          type: n?.type,
-          created_at: n?.created_at,
-        } as Notification;
-      });
-
-      setNotifications(mapped);
-      await AsyncStorage.setItem('notifications', JSON.stringify(mapped));
-    } catch (error) {
-      console.error('Eroare la încărcarea notificărilor:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [getReadIds]);
-
-  const saveNotifications = useCallback(async (data: Notification[]) => {
-    try {
-      await AsyncStorage.setItem('notifications', JSON.stringify(data));
-    } catch (error) {
-      console.error('Eroare la salvare:', error);
-    }
-  }, []);
-
-  const markAsRead = useCallback(async (id: string) => {
-    const updated = notifications.map((n) =>
-      n.id === id ? { ...n, read: true } : n
-    );
-    setNotifications(updated);
-    saveNotifications(updated);
-
-    const ids = await getReadIds();
-    ids.add(id);
-    await saveReadIds(ids);
-  }, [notifications, saveNotifications, getReadIds, saveReadIds]);
+  const markAsRead = useCallback((id: string) => {
+    setReadIds(prev => {
+      const next = new Set(prev);
+      next.add(id);
+      saveReadIds(next);
+      return next;
+    });
+  }, [saveReadIds]);
 
   const markAllAsRead = useCallback(async () => {
-    // Get all notifications from API to mark all as read
-    try {
-      const { data, error } = await apiClient.getNotificationIds();
-
-      if (!error && data) {
-        // Mark all notification IDs as read
-        const allIds = new Set(data.map((n: any) => String(n?.id ?? '')));
-        await saveReadIds(allIds);
-      }
-    } catch (err) {
-      console.error('Eroare la marcarea tuturor ca citite:', err);
-    }
-
-    const updated = notifications.map((n) => ({ ...n, read: true }));
-    setNotifications(updated);
-    saveNotifications(updated);
-    
-    // Also mark current notifications as read
-    const currentIds = new Set(updated.map((n) => n.id));
-    const existingIds = await getReadIds();
-    const allIds = new Set([...existingIds, ...currentIds]);
+    const { apiClient } = await import('../lib/apiClient');
+    const { data } = await apiClient.getNotificationIds();
+    const allIds = new Set((data ?? []).map((n: any) => String(n?.id ?? '')));
+    notifications.forEach(n => allIds.add(n.id));
+    setReadIds(allIds);
     await saveReadIds(allIds);
-  }, [notifications, saveNotifications, saveReadIds, getReadIds]);
+  }, [notifications, saveReadIds]);
 
   const deleteAllNotifications = useCallback(() => {
     Alert.alert('Confirmare', 'Ești sigur că vrei să ștergi toate notificările?', [
@@ -218,21 +142,13 @@ export default function Notifications() {
         text: 'Șterge',
         style: 'destructive',
         onPress: async () => {
-          // Save all notification IDs as deleted
-          const deletedIds = notifications.map(n => n.id);
-          const DELETED_IDS_KEY = 'notifications_deleted_ids';
-          try {
-            const existing = await AsyncStorage.getItem(DELETED_IDS_KEY);
-            const existingIds = existing ? JSON.parse(existing) : [];
-            const allDeleted = [...new Set([...existingIds, ...deletedIds])];
-            await AsyncStorage.setItem(DELETED_IDS_KEY, JSON.stringify(allDeleted));
-          } catch (err) {
-            console.error('Eroare la salvare notificări șterse:', err);
-          }
-          
-          setNotifications([]);
-          await AsyncStorage.removeItem('notifications');
-          await AsyncStorage.removeItem(READ_IDS_KEY);
+          const toDelete = new Set(notifications.map(n => n.id));
+          setDeletedIds(prev => {
+            const next = new Set(prev);
+            toDelete.forEach(id => next.add(id));
+            AsyncStorage.setItem(DELETED_IDS_KEY, JSON.stringify(Array.from(next))).catch(() => {});
+            return next;
+          });
         },
       },
     ]);
@@ -282,69 +198,80 @@ export default function Notifications() {
                 </TouchableOpacity>
               </Animated.View>
             )}
-            {isLoading ? (
+            {notificationsError ? (
+              <View style={{ paddingHorizontal: 20, paddingTop: 24 }}>
+                <ApiErrorView
+                  message={notificationsErrorObj?.message ?? undefined}
+                  onRetry={() => refetch()}
+                />
+              </View>
+            ) : isLoading ? (
               <View style={styles.emptyContainer}>
                 <Text style={[styles.emptyText, { color: colors.textMuted }]}>
                   Se încarcă notificările...
                 </Text>
               </View>
             ) : notifications.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <Ionicons name="notifications-off-outline" size={64} color={colors.textMuted} />
-                <Text style={[styles.emptyText, { color: colors.textMuted }]}>
-                  Nu ai notificări momentan
-                </Text>
-              </View>
+              <EmptyState
+                icon="notifications-off-outline"
+                title="Nu ai notificări momentan"
+                style={{ paddingVertical: 40 }}
+              />
             ) : (
-              notifications.map((notif, index) => (
-                <TouchableOpacity
-                  key={notif.id}
-                  style={[
-                    styles.notification,
-                    { 
-                      backgroundColor: colors.surface,
-                      borderColor: notif.read ? colors.border : colors.primaryButton,
-                      marginBottom: index < notifications.length - 1 ? 12 : 0,
-                    },
-                    !notif.read && styles.notificationUnread,
-                  ]}
-                  onPress={() => handleOpen(notif)}
-                  activeOpacity={0.7}
-                >
-                  <View style={[
-                    styles.notificationIcon,
-                    { backgroundColor: isDark ? colors.surface : '#333' }
-                  ]}>
-                    <Ionicons 
-                      name={notif.read ? "notifications-outline" : "notifications"} 
-                      size={20} 
-                      color={colors.primaryButton} 
-                    />
-                  </View>
-                  <View style={styles.notificationContent}>
-                    <Text 
+              notificationsByDate.map(({ key: groupKey, items }) => (
+                <View key={groupKey} style={styles.section}>
+                  <Text style={[styles.sectionHeader, { color: colors.textMuted }]}>{groupKey}</Text>
+                  {items.map((notif, index) => (
+                    <TouchableOpacity
+                      key={notif.id}
                       style={[
-                        styles.notifTitle,
-                        { color: notif.read ? colors.text : colors.text }
+                        styles.notification,
+                        { 
+                          backgroundColor: colors.surface,
+                          borderColor: notif.read ? colors.border : colors.primaryButton,
+                          marginBottom: index < items.length - 1 ? 12 : 0,
+                        },
+                        !notif.read && styles.notificationUnread,
                       ]}
-                      numberOfLines={1}
+                      onPress={() => handleOpen(notif)}
+                      activeOpacity={0.7}
                     >
-                      {notif.title}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.notifMessage,
-                        { color: notif.read ? colors.textMuted : colors.text }
-                      ]}
-                      numberOfLines={2}
-                    >
-                      {notif.message}
-                    </Text>
-                  </View>
-                  {!notif.read && (
-                    <View style={[styles.unreadDot, { backgroundColor: colors.primaryButton }]} />
-                  )}
-                </TouchableOpacity>
+                      <View style={[
+                        styles.notificationIcon,
+                        { backgroundColor: isDark ? colors.surface : '#333' }
+                      ]}>
+                        <Ionicons 
+                          name={notif.read ? "notifications-outline" : "notifications"} 
+                          size={20} 
+                          color={colors.primaryButton} 
+                        />
+                      </View>
+                      <View style={styles.notificationContent}>
+                        <Text 
+                          style={[
+                            styles.notifTitle,
+                            { color: notif.read ? colors.text : colors.text }
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {notif.title}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.notifMessage,
+                            { color: notif.read ? colors.textMuted : colors.text }
+                          ]}
+                          numberOfLines={2}
+                        >
+                          {notif.message}
+                        </Text>
+                      </View>
+                      {!notif.read && (
+                        <View style={[styles.unreadDot, { backgroundColor: colors.primaryButton }]} />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
               ))
             )}
 
@@ -490,6 +417,17 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 0,
     paddingTop: 0,
+  },
+  section: {
+    marginBottom: 20,
+  },
+  sectionHeader: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 10,
+    paddingHorizontal: 20,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   notification: {
     flexDirection: 'row',

@@ -12,10 +12,10 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { ThemeContext } from "../context/ThemeContext";
-import { getColors } from "../components/theme";
-import { apiClient } from "../../lib/apiClient";
-import Screen from "../components/Screen";
+import { ThemeContext } from "../_context/ThemeContext";
+import { getColors } from "../_components/theme";
+import { apiClient, resolveImageUrl } from "../../lib/apiClient";
+import Screen from "../_components/Screen";
 
 const { width } = Dimensions.get('window');
 const isSmallScreen = width < 375;
@@ -123,7 +123,7 @@ export default function BlogDetails() {
         {post.image_url && (
           <View style={styles.imageContainer}>
             <Image 
-              source={{ uri: post.image_url }} 
+              source={{ uri: resolveImageUrl(post.image_url) ?? '' }} 
               style={styles.image}
               resizeMode="cover"
             />

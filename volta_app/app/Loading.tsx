@@ -3,11 +3,16 @@ import { View, Text, StyleSheet, Animated, Image, Dimensions } from 'react-nativ
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ThemeContext } from './_context/ThemeContext';
+import { getColors } from './_components/theme';
 
 const { width } = Dimensions.get('window');
 
 export default function Loading() {
   const router = useRouter();
+  const { theme } = React.useContext(ThemeContext);
+  const colors = getColors(theme);
+  const gradientColors = theme === 'dark' ? [colors.background, colors.surface] : ['#FFFFFF', '#FAFAFA'];
   
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
@@ -111,7 +116,7 @@ export default function Loading() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={['#FFFFFF', '#FAFAFA']}
+        colors={gradientColors}
         style={styles.gradient}
       >
         <View style={styles.content}>
@@ -177,7 +182,7 @@ export default function Loading() {
               { opacity: fadeAnim },
             ]}
           >
-            <Text style={styles.poweredByText}>POWERED BY MEJIEVSCHI</Text>
+            <Text style={[styles.poweredByText, { color: colors.textMuted }]}>POWERED BY MEJIEVSCHI</Text>
           </Animated.View>
         </View>
       </LinearGradient>

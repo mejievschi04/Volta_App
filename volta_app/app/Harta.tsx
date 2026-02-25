@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState, useContext } from 'react';
-import { StyleSheet, View, ActivityIndicator, Text, Dimensions, TouchableOpacity, ScrollView, Linking, Platform, Animated, Image } from 'react-native';
+import { StyleSheet, View, ActivityIndicator, Text, Dimensions, TouchableOpacity, ScrollView, Linking, Platform, Animated, Image, Alert } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Screen from './components/Screen';
-import { getColors, typography } from './components/theme';
-import { ThemeContext } from './context/ThemeContext';
+import Screen from './_components/Screen';
+import { getColors, typography } from './_components/theme';
+import { ThemeContext } from './_context/ThemeContext';
 
 const { width, height } = Dimensions.get('window');
 
@@ -37,11 +37,13 @@ export default function Harta() {
   const mapRef = useRef<MapView>(null);
   const slideAnim = useRef(new Animated.Value(0)).current;
   
-  // Calculate bottom menu height: padding (top + bottom) + content height + safe area
-  // Menu has paddingTop ~14, paddingBottom ~14, content ~50, plus safe area bottom
-  const bottomMenuHeight = 14 + 14 + 50 + Math.max(insets.bottom, 8);
-  // Position menu closer to bottom menu
-  const storesMenuBottom = bottomMenuHeight - 105;
+  // Înălțime meniu jos (app) – aliniat cu BottomMenu: paddingTop + înălțime item + paddingBottom
+  const bottomMenuHeight = 14 + 65 + Math.max(insets.bottom, 8);
+  // Meniul cu magazine lipit de meniu: coborât suficient ca să nu rămână niciun gol vizual
+  const storesMenuBottom = Math.max(0, bottomMenuHeight - 24);
+  // Înălțime rând magazine – butoanele harta cu câțiva px mai sus de el
+  const storesStripHeight = 12 + 56 + 12;
+  const mapButtonsBottom = storesMenuBottom + storesStripHeight + 18;
 
   const dynamicStyles = StyleSheet.create({
     container: {
@@ -56,7 +58,7 @@ export default function Harta() {
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        alert('Permisiunea pentru locație este necesară.');
+        Alert.alert('Locație', 'Permisiunea pentru locație este necesară pentru a afișa magazinele apropiate.');
         return;
       }
       const loc = await Location.getCurrentPositionAsync({});
@@ -165,7 +167,7 @@ export default function Harta() {
   });
   const panelHeight = slideAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [48, 180], // De la înălțimea butonului la înălțimea panoului (redusă)
+    outputRange: [48, 200],
   });
   const panelOpacity = slideAnim.interpolate({
     inputRange: [0, 1],
@@ -181,7 +183,7 @@ export default function Harta() {
   });
 
   return (
-    <Screen padded={false}>
+    <Screen padded={false} fullBleedTop>
       <View style={[styles.container, dynamicStyles.container]}>
       {/* Badge Info / Panou Info - apare doar când există magazin selectat */}
       {selectedStoreId && (
@@ -195,7 +197,9 @@ export default function Harta() {
               top: insets.top + 16,
               left: 16,
               opacity: panelOpacity,
-            }
+              borderColor: showInfoPanel ? 'rgba(0,0,0,0.12)' : 'rgba(255, 238, 0, 0.3)',
+              shadowColor: '#000',
+            },
           ]}
         >
           {!showInfoPanel ? (
@@ -205,7 +209,7 @@ export default function Harta() {
                 setShowInfoPanel(true);
                 Animated.spring(slideAnim, {
                   toValue: 1,
-                  useNativeDriver: false, // width/height nu suportă native driver
+                  useNativeDriver: false,
                   tension: 50,
                   friction: 7,
                 }).start();
@@ -213,7 +217,7 @@ export default function Harta() {
             >
               <Animated.View style={{ opacity: badgeTextOpacity, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <Ionicons name="information-circle" size={20} color="#000" />
-                <Text style={styles.badgeText}>Info</Text>
+                <Text style={[styles.badgeText, { color: '#000' }]}>Info</Text>
               </Animated.View>
             </TouchableOpacity>
           ) : null}
@@ -236,14 +240,16 @@ export default function Harta() {
                 
                 return (
                   <View style={styles.infoPanelInner}>
-                    <View style={styles.infoPanelHeader}>
+                    <View style={[styles.infoPanelHeader, { borderBottomColor: 'rgba(0,0,0,0.15)' }]}>
                       <View style={styles.infoPanelHeaderLeft}>
-                        <Ionicons name="location" size={20} color={colors.primaryButton} />
-                        <Text style={[styles.infoPanelTitle, { color: isDark ? '#fff' : '#000' }]} numberOfLines={1}>
+                        <View style={[styles.infoPanelIconWrap, { backgroundColor: 'rgba(0,0,0,0.1)' }]}>
+                          <Ionicons name="location" size={18} color="#333" />
+                        </View>
+                        <Text style={[styles.infoPanelTitle, { color: '#333' }]} numberOfLines={1}>
                           {selectedStore.name}
                         </Text>
                       </View>
-                      <TouchableOpacity
+                        <TouchableOpacity
                         onPress={() => {
                           Animated.spring(slideAnim, {
                             toValue: 0,
@@ -254,18 +260,20 @@ export default function Harta() {
                             setShowInfoPanel(false);
                           });
                         }}
-                        style={styles.infoPanelClose}
+                        style={[styles.infoPanelClose, { backgroundColor: 'rgba(0,0,0,0.08)' }]}
                       >
-                        <Ionicons name="close" size={24} color={isDark ? '#fff' : '#000'} />
+                        <Ionicons name="close" size={22} color="#333" />
                       </TouchableOpacity>
                     </View>
                     <View style={styles.infoPanelCompactContent}>
                       <View style={styles.infoPanelSection}>
                         <View style={styles.infoPanelRow}>
-                          <Ionicons name="time-outline" size={20} color={colors.primaryButton} />
-                          <Text style={[styles.infoPanelLabel, { color: isDark ? '#fff' : '#000' }]}>Ore de lucru:</Text>
+                          <View style={[styles.infoPanelIconWrap, { backgroundColor: 'rgba(0,0,0,0.1)' }]}>
+                            <Ionicons name="time-outline" size={18} color="#333" />
+                          </View>
+                          <Text style={[styles.infoPanelLabel, { color: '#555' }]}>Ore de lucru</Text>
                         </View>
-                        <Text style={[styles.infoPanelStoreHours, { color: isDark ? '#fff' : '#000' }]}>
+                        <Text style={[styles.infoPanelStoreHours, { color: '#333' }]}>
                           {selectedStore.hours.split('\n').filter(line => !line.includes('Duminică nu se lucrează')).join('\n')}
                         </Text>
                       </View>
@@ -274,10 +282,12 @@ export default function Harta() {
                           <TouchableOpacity
                             onPress={() => Linking.openURL(`tel:${selectedStore.phone}`)}
                             activeOpacity={0.7}
-                            style={[styles.infoPanelRow, { justifyContent: 'center' }]}
+                            style={[styles.infoPanelRow, styles.infoPanelPhoneRow]}
                           >
-                            <Ionicons name="call" size={20} color={isDark ? '#fff' : '#000'} />
-                            <Text style={[styles.infoPanelPhone, { color: isDark ? '#fff' : '#000' }]}>
+                            <View style={[styles.infoPanelIconWrap, { backgroundColor: 'rgba(0,0,0,0.1)' }]}>
+                              <Ionicons name="call" size={18} color="#333" />
+                            </View>
+                            <Text style={[styles.infoPanelPhone, { color: '#333' }]}>
                               {selectedStore.phone}
                             </Text>
                           </TouchableOpacity>
@@ -291,10 +301,12 @@ export default function Harta() {
               // Dacă nu există magazin selectat, afișează lista tuturor magazinelor
               return (
                 <View style={styles.infoPanelInner}>
-                  <View style={styles.infoPanelHeader}>
+                  <View style={[styles.infoPanelHeader, { borderBottomColor: 'rgba(0,0,0,0.15)' }]}>
                     <View style={styles.infoPanelHeaderLeft}>
-                      <Ionicons name="information-circle" size={20} color={colors.primaryButton} />
-                      <Text style={[styles.infoPanelTitle, { color: isDark ? '#fff' : '#000' }]}>Informații</Text>
+                      <View style={[styles.infoPanelIconWrap, { backgroundColor: 'rgba(0,0,0,0.1)' }]}>
+                        <Ionicons name="information-circle" size={18} color="#333" />
+                      </View>
+                      <Text style={[styles.infoPanelTitle, { color: '#333' }]}>Informații magazine</Text>
                     </View>
                     <TouchableOpacity
                       onPress={() => {
@@ -305,16 +317,16 @@ export default function Harta() {
                           friction: 7,
                         }).start(() => setShowInfoPanel(false));
                       }}
-                      style={styles.infoPanelClose}
+                      style={[styles.infoPanelClose, { backgroundColor: 'rgba(0,0,0,0.08)' }]}
                     >
-                      <Ionicons name="close" size={24} color={isDark ? '#fff' : '#000'} />
+                      <Ionicons name="close" size={22} color="#333" />
                     </TouchableOpacity>
                   </View>
                   <ScrollView style={styles.infoPanelCompactContent} showsVerticalScrollIndicator={false}>
                     {stores.map((store) => (
-                      <View key={store.id} style={[styles.infoPanelStoreItem, { borderBottomColor: isDark ? '#333' : '#E0E0E0' }]}>
-                        <Text style={[styles.infoPanelStoreName, { color: isDark ? '#fff' : '#000' }]}>{store.name}</Text>
-                        <Text style={[styles.infoPanelStoreHours, { color: isDark ? '#ccc' : '#666' }]}>{store.hours}</Text>
+                      <View key={store.id} style={[styles.infoPanelStoreItem, { borderBottomColor: 'rgba(0,0,0,0.12)' }]}>
+                        <Text style={[styles.infoPanelStoreName, { color: '#333' }]}>{store.name}</Text>
+                        <Text style={[styles.infoPanelStoreHoursSmall, { color: '#555' }]}>{store.hours}</Text>
                       </View>
                     ))}
                   </ScrollView>
@@ -368,7 +380,7 @@ export default function Harta() {
             { 
               backgroundColor: colors.primaryButton, 
               borderColor: colors.primaryButton,
-              bottom: bottomMenuHeight -12,
+              bottom: mapButtonsBottom,
             }
           ]} 
           onPress={centerToUser}
@@ -388,7 +400,7 @@ export default function Harta() {
                 { 
                   backgroundColor: colors.primaryButton, 
                   borderColor: colors.primaryButton,
-                  bottom: bottomMenuHeight - 12,
+                  bottom: mapButtonsBottom,
                 }
               ]}
               onPress={() => openNavigation(selectedStore)}
@@ -562,7 +574,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  badgeText: { color: '#000', fontWeight: '700', fontSize: 16 },
+  badgeText: { fontWeight: '700', fontSize: 16 },
   infoPanelContentWrapper: {
     width: '100%',
     height: '100%',
@@ -715,23 +727,30 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 4,
-    paddingBottom: 8,
+    paddingBottom: 10,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   infoPanelHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
     flex: 1,
   },
+  infoPanelIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   infoPanelTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
     flex: 1,
   },
   infoPanelClose: {
-    padding: 4,
+    padding: 6,
+    borderRadius: 10,
   },
   infoPanelContent: {
     gap: 16,
@@ -747,56 +766,41 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   infoPanelLabel: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  infoPanelHours: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginLeft: 26,
-  },
-  infoPanelDistance: {
-    fontSize: 16,
-    fontWeight: '700',
-    marginLeft: 26,
-  },
-  infoPanelButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 12,
-    gap: 8,
-    marginTop: 8,
-  },
-  infoPanelButtonText: {
-    color: '#000',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  infoPanelCompactContent: {
-    maxHeight: 150,
-    paddingTop: 0,
-  },
-  infoPanelStoreItem: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
-  infoPanelStoreName: {
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 4,
+    fontSize: 13,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   infoPanelStoreHours: {
-    fontSize: 15,
-    lineHeight: 22,
-    fontWeight: '600',
-    marginLeft: 28,
+    fontSize: 14,
+    lineHeight: 20,
+    marginLeft: 42,
+    marginTop: 2,
+  },
+  infoPanelPhoneRow: {
+    justifyContent: 'flex-start',
   },
   infoPanelPhone: {
     fontSize: 15,
-    lineHeight: 22,
-    fontWeight: '600',
+    fontWeight: '700',
     textDecorationLine: 'underline',
+  },
+  infoPanelCompactContent: {
+    maxHeight: 150,
+    paddingTop: 4,
+  },
+  infoPanelStoreItem: {
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+  },
+  infoPanelStoreName: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  infoPanelStoreHoursSmall: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 2,
   },
 });

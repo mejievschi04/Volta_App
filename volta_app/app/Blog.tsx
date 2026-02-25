@@ -12,11 +12,12 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { typography, getColors } from "./components/theme";
-import { ThemeContext } from "./context/ThemeContext";
+import { typography, getColors } from "./_components/theme";
+import { ThemeContext } from "./_context/ThemeContext";
 import { useRouter } from "expo-router";
-import { apiClient } from "../lib/apiClient";
-import Screen from "./components/Screen";
+import { apiClient, resolveImageUrl } from "../lib/apiClient";
+import Screen from "./_components/Screen";
+import EmptyState from "./_components/EmptyState";
 
 const { width } = Dimensions.get('window');
 const isSmallScreen = width < 375;
@@ -107,12 +108,11 @@ export default function Blog() {
               showsVerticalScrollIndicator={false}
             >
               {posts.length === 0 ? (
-                <View style={styles.emptyContainer}>
-                  <Ionicons name="newspaper-outline" size={64} color={colors.textMuted} />
-                  <Text style={[styles.emptyText, { color: colors.textMuted }]}>
-                    Nu există articole momentan.
-                  </Text>
-                </View>
+                <EmptyState
+                  icon="newspaper-outline"
+                  title="Nu există articole momentan."
+                  style={{ marginTop: 60 }}
+                />
               ) : (
                 posts.map((p, index) => (
                   <Pressable
@@ -134,7 +134,7 @@ export default function Blog() {
                     <View style={styles.imageContainer}>
                       {p.image_url ? (
                         <Image 
-                          source={{ uri: p.image_url }} 
+                          source={{ uri: resolveImageUrl(p.image_url) ?? '' }} 
                           style={styles.cardImage}
                           resizeMode="cover"
                         />

@@ -1,24 +1,32 @@
 import React, { useContext } from "react";
-import { View, StyleSheet, SafeAreaView, Platform } from "react-native";
+import { View, StyleSheet, Platform } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { spacing, getColors } from "./theme";
-import { ThemeContext } from "../context/ThemeContext";
+import { ThemeContext } from "../_context/ThemeContext";
 
 type ScreenProps = {
   children: React.ReactNode;
   padded?: boolean;
   withBottomInset?: boolean;
+  /** Harta etc.: conținutul se extinde sub bara de status (fără padding top) */
+  fullBleedTop?: boolean;
   style?: any;
 };
 
-export default function Screen({ children, padded = true, withBottomInset = true, style }: ScreenProps) {
+export default function Screen({ children, padded = true, withBottomInset = true, fullBleedTop = false, style }: ScreenProps) {
   const { theme } = useContext(ThemeContext);
   const colors = getColors(theme);
+  const insets = useSafeAreaInsets();
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
+    <SafeAreaView 
+      style={[styles.safe, { backgroundColor: colors.background }]} 
+      edges={['left', 'right', 'bottom']}
+    >
       <View
         style={[
           styles.container,
+          { paddingTop: fullBleedTop ? 0 : insets.top },
           padded && styles.padded,
           withBottomInset && styles.bottomInset,
           style,

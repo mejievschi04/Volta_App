@@ -4,9 +4,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
-import { UserContext } from './context/UserContext'; // contextul global
-import { ThemeContext } from './context/ThemeContext';
-import { getColors } from './components/theme';
+import { UserContext } from './_context/UserContext'; // contextul global
+import { ThemeContext } from './_context/ThemeContext';
+import { getColors } from './_components/theme';
 import { apiClient } from '../lib/apiClient';
 
 const { width } = Dimensions.get('window');
@@ -31,7 +31,7 @@ export default function EditProfil() {
 
   const handleSave = async () => {
     if (!name || !email) {
-      console.error('Eroare: Numele și email-ul nu pot fi goale.');
+      Alert.alert('Date incomplete', 'Completează numele și emailul.', [{ text: 'OK' }]);
       return;
     }
 
@@ -55,7 +55,8 @@ export default function EditProfil() {
 
       router.back();
     } catch (err: any) {
-      console.error('Eroare la salvare:', err.message || 'Ceva nu a mers bine.');
+      const message = err?.message || 'Nu s-a putut salva. Verifică datele și încearcă din nou.';
+      Alert.alert('Eroare la salvare', message, [{ text: 'OK' }]);
     }
   };
 
@@ -99,7 +100,7 @@ export default function EditProfil() {
         </TouchableOpacity>
 
         {/* Back Button */}
-        <TouchableOpacity 
+        <TouchableOpacity
           onPress={() => router.back()}
           activeOpacity={0.8}
           style={styles.backButtonWrapper}
