@@ -1,6 +1,9 @@
 import { useEffect, useRef } from 'react';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import { useRouter } from 'expo-router';
+import Constants from 'expo-constants';
+import { apiClient } from '../lib/apiClient';
 
 // Configure how notifications are handled when app is in foreground
 Notifications.setNotificationHandler({
@@ -11,28 +14,37 @@ Notifications.setNotificationHandler({
   }),
 });
 
-export const useNotifications = () => {
-  const notificationListener = useRef<any>();
-  const responseListener = useRef<any>();
+export const useNotifications = (userId: string | number | null, enabled: boolean = true) => {
+  const router = useRouter();
+  const notificationListener = useRef<Notifications.EventSubscription | undefined>(undefined);
+  const responseListener = useRef<Notifications.EventSubscription | undefined>(undefined);
 
   useEffect(() => {
-    // Request permissions
-    registerForPushNotificationsAsync();
+    if (!userId || !enabled) return;
+    registerForPushNotificationsAsync().then(async (token) => {
+      if (!token) {
+        if (__DEV__) console.warn('[Notifications] Nu s-a putut obține token push (permisiuni sau projectId).');
+        return;
+      }
+      if (__DEV__) console.log('[Notifications] Token push obținut, trimit la backend...');
+      const { error } = await apiClient.setPushToken(userId, token);
+      if (error) {
+        console.warn('[Notifications] Nu s-a putut înregistra token-ul push:', error);
+      } else if (__DEV__) {
+        console.log('[Notifications] Token push înregistrat la backend.');
+      }
+    });
+  }, [userId, enabled]);
 
-    // Listener for notifications received while app is foregrounded
-    notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
-      console.log('Notification received:', notification);
+  useEffect(() => {
+    notificationListener.current = Notifications.addNotificationReceivedListener((_notification) => {
+      // Notificare primită în foreground
     });
 
-    // Listener for when user taps on notification
-    responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
-      console.log('Notification response:', response);
-      const data = response.notification.request.content.data;
-      // Poți naviga către o anumită pagină bazat pe data
-      if (data?.type === 'message') {
-        // Navigate to messages
-      } else if (data?.type === 'notification') {
-        // Navigate to notifications
+    responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data as { type?: string };
+      if (data?.type === 'notification') {
+        router.push('/Notifications');
       }
     });
 
@@ -44,26 +56,19 @@ export const useNotifications = () => {
         Notifications.removeNotificationSubscription(responseListener.current);
       }
     };
-  }, []);
+  }, [router]);
 
   return {
-    scheduleNotification: async (title: string, body: string, data?: any) => {
+    scheduleNotification: async (title: string, body: string, data?: Record<string, unknown>) => {
       await Notifications.scheduleNotificationAsync({
-        content: {
-          title,
-          body,
-          data: data || {},
-          sound: true,
-        },
-        trigger: null, // Show immediately
+        content: { title, body, data: data || {}, sound: true },
+        trigger: null,
       });
     },
   };
 };
 
-export async function registerForPushNotificationsAsync() {
-  let token;
-
+export async function registerForPushNotificationsAsync(): Promise<string | null> {
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
       name: 'default',
@@ -76,17 +81,35 @@ export async function registerForPushNotificationsAsync() {
 
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
   let finalStatus = existingStatus;
-  
+
   if (existingStatus !== 'granted') {
     const { status } = await Notifications.requestPermissionsAsync();
     finalStatus = status;
   }
-  
+
   if (finalStatus !== 'granted') {
-    console.log('[Notifications] Permisiuni refuzate pentru notificări push');
     return null;
   }
 
-  return token;
+  try {
+    const expoConfig = Constants.expoConfig as { projectId?: string; extra?: { eas?: { projectId?: string } } } | null;
+    const projectId =
+      expoConfig?.projectId ??
+      expoConfig?.extra?.eas?.projectId ??
+      (typeof process !== 'undefined' ? (process.env as NodeJS.ProcessEnv)?.EXPO_PUBLIC_PROJECT_ID : undefined);
+    if (!projectId) {
+      if (__DEV__) {
+        console.warn(
+          '[Notifications] projectId lipsă: adaugă în app.json "expo": { "projectId": "ID" } (rulează "eas init") sau EXPO_PUBLIC_PROJECT_ID în .env.'
+        );
+      }
+      return null;
+    }
+    const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+    return tokenData?.data ?? null;
+  } catch (e) {
+    console.warn('[Notifications] getExpoPushTokenAsync error:', e);
+    return null;
+  }
 }
 

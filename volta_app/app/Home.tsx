@@ -34,11 +34,11 @@ export default function Home() {
   // Responsive dimensions
   const { width, height, isSmallScreen, isTablet, scale } = useResponsive();
   
-  // Slideshow full width of screen (no side padding)
-  const slideWidth = width;
+  // Slideshow – lățime full ecran, înălțime redusă
+  const slideWidth = Math.round(width);
+  const SLIDE_HEIGHT = Math.round(width * 0.9);
+  const slideSize = slideWidth;
   const CARD_WIDTH = width;
-  const CARD_RADIUS = 0; // edge-to-edge, no rounded corners
-  const SLIDE_HEIGHT = Math.round(width); // square banner
   
   // Get responsive styles
   const responsiveStyles = useMemo(() => getStyles(isSmallScreen, scale), [isSmallScreen, scale]);
@@ -103,10 +103,13 @@ export default function Home() {
 
   useEffect(() => {
     if (slides.length === 0) return;
+    const slide = slides[active];
+    if (!slide?.deadline) return;
 
-    setTimeLeft(calcLeft(slides[active].deadline));
+    setTimeLeft(calcLeft(slide.deadline));
     const timer = setInterval(() => {
-      setTimeLeft(calcLeft(slides[active].deadline));
+      const s = slides[active];
+      if (s?.deadline) setTimeLeft(calcLeft(s.deadline));
     }, 1000);
 
     return () => clearInterval(timer);
@@ -121,6 +124,12 @@ export default function Home() {
     slidesLenRef.current = slides.length;
   }, [slides.length]);
 
+  // Dacă slides se scurtează, active poate fi out-of-bounds – îl readucem în limite
+  useEffect(() => {
+    if (slides.length === 0) return;
+    if (active >= slides.length) setActive(Math.max(0, slides.length - 1));
+  }, [slides.length, active]);
+
   // Prefetch first images for smoother carousel
   useEffect(() => {
     if (!slides.length) return;
@@ -130,36 +139,17 @@ export default function Home() {
     });
   }, [slides]);
 
-  // Autoplay slideshow (pauses after user interaction)
-  useEffect(() => {
-    if (slides.length < 2) return;
-
-    const AUTOPLAY_INTERVAL_MS = 5000;
-    const PAUSE_AFTER_INTERACTION_MS = 8000;
-
-    const interval = setInterval(() => {
-      const now = Date.now();
-      if (now - lastInteractionTsRef.current < PAUSE_AFTER_INTERACTION_MS) return;
-      const len = slidesLenRef.current;
-      if (len < 2) return;
-      const nextIndex = (activeRef.current + 1) % len;
-      goToSlide(nextIndex);
-    }, AUTOPLAY_INTERVAL_MS);
-
-    return () => clearInterval(interval);
-  }, [goToSlide, slides.length]);
-
-  const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const page = Math.round(e.nativeEvent.contentOffset.x / slideWidth);
-    if (page !== active) setActive(page);
-  }, [active, slideWidth]);
-
   const goToSlide = useCallback((index: number) => {
     if (slides.length === 0) return;
     const clampedIndex = Math.min(Math.max(index, 0), slides.length - 1);
     scrollRef.current?.scrollTo({ x: clampedIndex * slideWidth, animated: true });
     setActive(clampedIndex);
   }, [slides.length, slideWidth]);
+
+  const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const page = Math.round(e.nativeEvent.contentOffset.x / slideWidth);
+    if (page !== active) setActive(page);
+  }, [active, slideWidth]);
 
   const goToSlideFromUser = useCallback((index: number) => {
     markInteraction();
@@ -180,6 +170,25 @@ export default function Home() {
     goToSlide(prevIndex);
   }, [active, slides.length, goToSlide, markInteraction]);
 
+  // Autoplay slideshow (pauses after user interaction)
+  useEffect(() => {
+    if (slides.length < 2) return;
+
+    const AUTOPLAY_INTERVAL_MS = 5000;
+    const PAUSE_AFTER_INTERACTION_MS = 8000;
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      if (now - lastInteractionTsRef.current < PAUSE_AFTER_INTERACTION_MS) return;
+      const len = slidesLenRef.current;
+      if (len < 2) return;
+      const nextIndex = (activeRef.current + 1) % len;
+      goToSlide(nextIndex);
+    }, AUTOPLAY_INTERVAL_MS);
+
+    return () => clearInterval(interval);
+  }, [goToSlide, slides.length]);
+
   const headerHeight = useMemo(() => isSmallScreen ? responsiveSize(70, scale) : responsiveSize(80, scale), [isSmallScreen, scale]);
 
   useEffect(() => {
@@ -190,16 +199,16 @@ export default function Home() {
     setUnreadMessagesCount(unreadCount);
 
     if (messagesData.length > 0) {
-      const latestMessage = messagesData[messagesData.length - 1];
-      if (latestMessage.is_from_admin && latestMessage.id !== lastMessageIdRef.current) {
+      const latestMessage = messagesData[messagesData.length - 1] as { is_from_admin?: boolean; id?: number; message?: string };
+      if (latestMessage?.is_from_admin && latestMessage?.id !== lastMessageIdRef.current) {
         if (lastMessageIdRef.current !== null) {
-          const messageText = latestMessage.message || 'Ai primit un mesaj nou';
-          setNewMessageNotification({ message: messageText, id: latestMessage.id });
+          const messageText = latestMessage?.message || 'Ai primit un mesaj nou';
+          setNewMessageNotification({ message: messageText, id: latestMessage?.id ?? 0 });
           Notifications.scheduleNotificationAsync({
             content: {
               title: 'Volta Support',
               body: messageText.length > 100 ? messageText.substring(0, 100) + '...' : messageText,
-              data: { type: 'message', messageId: latestMessage.id },
+              data: { type: 'message', messageId: latestMessage?.id },
               sound: true,
             },
             trigger: null,
@@ -220,7 +229,7 @@ export default function Home() {
             });
           }, 5000);
         }
-        lastMessageIdRef.current = latestMessage.id;
+        lastMessageIdRef.current = latestMessage?.id ?? null;
       }
     }
   }, [messagesData, notificationAnim]);
@@ -355,14 +364,14 @@ export default function Home() {
 
               <View style={responsiveStyles.topButtons}>
                 <TouchableOpacity
-                  style={[responsiveStyles.iconBtn, { backgroundColor: colors.surface }]}
+                  style={[responsiveStyles.iconBtn, { backgroundColor: '#000' }]}
                   onPress={() => router.push('/Notifications')}
                   activeOpacity={0.7}
                 >
                   <Ionicons name="notifications-outline" size={22} color={colors.primaryButton} />
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[responsiveStyles.iconBtn, { backgroundColor: colors.surface, marginLeft: 8 }]}
+                  style={[responsiveStyles.iconBtn, { backgroundColor: '#000', marginLeft: 8 }]}
                   onPress={() => router.push('/Settings')}
                   activeOpacity={0.7}
                 >
@@ -435,18 +444,16 @@ export default function Home() {
           )}
 
           {/* Slideshow + imagine + timer – de la 0, doar inline */}
-          <Animated.View
-            style={{
-              opacity: fadeAnim,
-              marginTop: 28,
-              marginBottom: 16,
-              width: width,
-              marginHorizontal: -spacing.lg,
-              overflow: 'hidden',
-              minHeight: SLIDE_HEIGHT,
-            }}
-          >
-            {loading ? (
+          <View style={{ width: slideSize, marginHorizontal: -spacing.lg, position: 'relative', marginTop: 28, marginBottom: 16, minHeight: SLIDE_HEIGHT }}>
+            <Animated.View
+              style={{
+                opacity: fadeAnim,
+                width: slideSize,
+                overflow: 'hidden',
+                minHeight: SLIDE_HEIGHT,
+              }}
+            >
+              {loading ? (
               <View style={{ width: slideWidth, height: SLIDE_HEIGHT }}>
                 <SkeletonPromoSlide width={slideWidth} height={SLIDE_HEIGHT} />
               </View>
@@ -464,7 +471,7 @@ export default function Home() {
               </View>
             ) : (
               <>
-                <View style={{ width: width, height: SLIDE_HEIGHT }}>
+                <View style={{ width: slideSize, height: SLIDE_HEIGHT }}>
                   <ScrollView
                     horizontal
                     pagingEnabled
@@ -491,6 +498,7 @@ export default function Home() {
                             height: SLIDE_HEIGHT,
                             overflow: 'hidden',
                             position: 'relative',
+                            backgroundColor: colors.background,
                           }}
                         >
                           <TouchableOpacity
@@ -505,18 +513,18 @@ export default function Home() {
                               }
                             }}
                             style={{
-                              position: 'absolute',
-                              left: 0,
-                              top: 0,
                               width: slideWidth,
                               height: SLIDE_HEIGHT,
+                              alignItems: 'center',
+                              justifyContent: 'center',
                               overflow: 'hidden',
+                              backgroundColor: colors.background,
                             }}
                           >
                             <Image
                               source={{ uri: resolveImageUrl(s.image_url) ?? '' }}
-                              style={{ position: 'absolute', left: 0, top: 0, width: slideWidth, height: SLIDE_HEIGHT }}
-                              resizeMode="cover"
+                              style={{ width: slideWidth, height: SLIDE_HEIGHT }}
+                              resizeMode="contain"
                               onError={(e) => console.error('[Home] Eroare imagine:', s.image_url, e.nativeEvent?.error)}
                             />
                             <LinearGradient
@@ -577,34 +585,6 @@ export default function Home() {
                   </ScrollView>
                 </View>
 
-                {/* Slider Controls */}
-                <View style={responsiveStyles.sliderControls}>
-                  <TouchableOpacity 
-                    style={isDark ? [responsiveStyles.sliderBtn, styles.sliderBtnDark] : responsiveStyles.sliderBtn}
-                    onPress={prevSlide}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons
-                      name="chevron-back"
-                      size={20}
-                      color={isDark ? '#FFEE00' : colors.text}
-                      style={isDark ? undefined : { opacity: 0.7 }}
-                    />
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={isDark ? [responsiveStyles.sliderBtn, styles.sliderBtnDark] : responsiveStyles.sliderBtn}
-                    onPress={nextSlide}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons
-                      name="chevron-forward"
-                      size={20}
-                      color={isDark ? '#FFEE00' : colors.text}
-                      style={isDark ? { opacity: 0.75 } : { opacity: 0.7 }}
-                    />
-                  </TouchableOpacity>
-                </View>
-
                 {/* Dots indicator */}
                 <View style={responsiveStyles.dotsWrap}>
                   {slides.map((_, i) => {
@@ -632,6 +612,8 @@ export default function Home() {
               </>
             )}
           </Animated.View>
+
+          </View>
 
           {/* Toate Promoțiile Button */}
           <View style={[responsiveStyles.actionCardsContainer, { paddingHorizontal: responsiveWidth(5) }]}>
@@ -800,32 +782,36 @@ const getStyles = (isSmallScreen: boolean, scale: number) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: responsiveSize(12, scale),
+    paddingHorizontal: responsiveSize(22, scale),
     gap: responsiveSize(12, scale),
     zIndex: 50,
-    transform: [{ translateY: -responsiveSize(24, scale) }],
+    transform: [{ translateY: -responsiveSize(30, scale) }],
   },
   sliderBtn: {
-    width: responsiveSize(42, scale),
-    height: responsiveSize(42, scale),
-    borderRadius: responsiveSize(21, scale),
-    borderWidth: 0,
-    backgroundColor: 'rgba(255,255,255,0.75)',
+    width: responsiveSize(52, scale),
+    height: responsiveSize(52, scale),
+    borderRadius: responsiveSize(26, scale),
+    borderWidth: 1.5,
+    borderColor: 'rgba(0,0,0,0.2)',
+    backgroundColor: '#1a1a1a',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3,
-    transform: [{ scale: 0.8 }],
-    opacity: 0.6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 6,
+    opacity: 0.95,
   },
   sliderBtnDark: {
-    backgroundColor: 'rgba(0,0,0,0.85)',
-    borderColor: 'rgba(255, 238, 0, 0.3)',
-    shadowColor: '#FFEE00',
-    shadowOpacity: 0.2,
+    backgroundColor: '#1a1a1a',
+    borderColor: 'rgba(255, 238, 0, 0.35)',
+    borderWidth: 1.5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 8,
   },
   dotsWrap: {
     flexDirection: 'row',
@@ -975,109 +961,5 @@ const getStyles = (isSmallScreen: boolean, scale: number) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-});
-
-// Static styles that don't need responsive values
-const styles = StyleSheet.create({
-  slideTitleWrap: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 20,
-    zIndex: 20,
-  },
-  slideOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingHorizontal: 16,
-    paddingVertical: 18,
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    pointerEvents: 'none',
-  },
-  timerTopWrap: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 12,
-    width: '100%',
-    alignItems: 'center',
-  },
-  timerBottomRight: {
-    position: 'absolute',
-    bottom: 0,
-    right: 16,
-    zIndex: 100,
-  },
-  timerTopGradient: {
-    borderRadius: 18,
-    overflow: 'hidden',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 238, 0, 0.25)',
-    shadowColor: '#FFEE00',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  timerPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 238, 0, 0.35)',
-    alignSelf: 'flex-start',
-  },
-  timerPillText: {
-    color: '#FFEE00',
-    fontWeight: '800',
-    fontSize: 16,
-    letterSpacing: 0.6,
-    textShadowColor: 'rgba(255, 238, 0, 0.5)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 6,
-  },
-  timerPillStandalone: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    paddingVertical: 2,
-  },
-  timerIconWrap: {
-    backgroundColor: 'rgba(255, 238, 0, 0.15)',
-    borderRadius: 10,
-    padding: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 238, 0, 0.3)',
-  },
-  timerBorder: {
-    height: 2,
-    backgroundColor: '#000',
-    width: '100%',
-  },
-  titleBadge: {
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 14,
-    alignSelf: 'flex-start',
-    maxWidth: '92%',
-  },
-  sliderBtnDark: {
-    backgroundColor: 'rgba(0,0,0,0.85)',
-    borderColor: 'rgba(255, 238, 0, 0.3)',
-    shadowColor: '#FFEE00',
-    shadowOpacity: 0.2,
   },
 });

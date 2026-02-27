@@ -22,13 +22,14 @@ import { apiClient } from "../lib/apiClient";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { UserContext } from "./_context/UserContext";
-import { ThemeContext } from "./_context/ThemeContext";
+import type { User } from "../types/User";
 import Screen from "./_components/Screen";
 import { getColors } from "./_components/theme";
+import { useResponsive, responsiveSize } from "./_hooks/useResponsive";
 
-const { width, height } = Dimensions.get('window');
-const isSmallScreen = width < 375;
-const isLargeScreen = width > 414;
+const smallScreen = Dimensions.get('window').width < 375;
+const isLargeScreenStatic = Dimensions.get('window').width > 414;
+const _windowHeight = Dimensions.get('window').height;
 
 // Componenta InputField optimizată cu memo și animații
 interface InputFieldProps {
@@ -41,9 +42,11 @@ interface InputFieldProps {
   maxLength?: number;
   focusedInput: string | null;
   setFocusedInput: (value: string | null) => void;
-  scrollViewRef?: React.RefObject<ScrollView>;
+  scrollViewRef?: React.RefObject<ScrollView | null>;
   colors: { primaryButton: string; textMuted: string; background: string; border: string; text: string };
   error?: string;
+  isSmallScreen?: boolean;
+  scrollToY?: number;
 }
 
 const InputField = React.memo<InputFieldProps>(({ 
@@ -59,6 +62,8 @@ const InputField = React.memo<InputFieldProps>(({
   scrollViewRef,
   colors,
   error,
+  isSmallScreen = smallScreen,
+  scrollToY = 280,
 }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const isFocused = focusedInput === placeholder;
@@ -77,10 +82,10 @@ const InputField = React.memo<InputFieldProps>(({
     // Scroll to show password field when focused (gentle scroll)
     if (scrollViewRef?.current && (placeholder === "Parolă" || placeholder.includes("telefon"))) {
       setTimeout(() => {
-        scrollViewRef.current?.scrollTo({ y: 280, animated: true });
+        scrollViewRef.current?.scrollTo({ y: scrollToY, animated: true });
       }, 200);
     }
-  }, [placeholder, setFocusedInput, scaleAnim, scrollViewRef]);
+  }, [placeholder, setFocusedInput, scaleAnim, scrollViewRef, scrollToY]);
 
   const handleBlur = useCallback(() => {
     setFocusedInput(null);
@@ -154,8 +159,9 @@ InputField.displayName = 'InputField';
 const LoginScreen: React.FC = () => {
   const router = useRouter();
   const { setUser, setToken } = useContext(UserContext);
-  const { theme } = useContext(ThemeContext);
-  const colors = getColors(theme);
+  // Login și Register sunt mereu pe temă light
+  const colors = getColors('light');
+  const { width, height, isSmallScreen, isMediumScreen, scale } = useResponsive();
 
   const [nume, setNume] = useState("");
   const [prenume, setPrenume] = useState("");
@@ -361,12 +367,13 @@ const LoginScreen: React.FC = () => {
         return;
       }
 
+      const userToSet = (userObj as { user?: User }).user ?? userObj;
       const tokenObj = data?.token ?? null;
       if (tokenObj) await setToken(tokenObj);
-      setUser(userObj);
-      // setUser salvează automat în AsyncStorage
-      
-      const prenume = userObj.prenume || userObj.nume || 'Utilizator';
+      setUser(userToSet as User);
+
+      const u = userToSet as User;
+      const prenume = u.prenume || u.nume || 'Utilizator';
       setNotificationMessage(`Bun venit, ${prenume}!`);
       setShowNotification(true);
       Animated.spring(notificationAnim, {
@@ -450,16 +457,52 @@ const LoginScreen: React.FC = () => {
   }, [signupStep]);
 
   const logoSize = useMemo(() => {
-    if (isSmallScreen) return 280;
-    if (isLargeScreen) return 380;
-    return 320;
-  }, []);
+    if (isSmallScreen) return Math.round(240 * scale);
+    if (width > 414) return Math.round(360 * scale);
+    return Math.round(300 * scale);
+  }, [isSmallScreen, width, scale]);
 
   const titleSize = useMemo(() => {
-    if (isSmallScreen) return 24;
-    if (isLargeScreen) return 32;
-    return 28;
-  }, []);
+    if (isSmallScreen) return Math.round(22 * scale);
+    if (width > 414) return Math.round(30 * scale);
+    return Math.round(26 * scale);
+  }, [isSmallScreen, width, scale]);
+
+  const scrollToY = useMemo(() => Math.min(height * 0.4, 320), [height]);
+
+  const responsiveStyles = useMemo(() => ({
+    scrollContent: {
+      paddingHorizontal: Math.max(16, width * 0.05),
+      paddingTop: Platform.OS === 'ios' ? responsiveSize(10, scale) : 5,
+      paddingBottom: Math.max(280, height * 0.38),
+    },
+    modalContent: {
+      maxHeight: height * 0.72,
+      paddingHorizontal: Math.max(16, width * 0.05),
+      paddingTop: responsiveSize(18, scale),
+      paddingBottom: Platform.OS === 'ios' ? responsiveSize(36, scale) : responsiveSize(20, scale),
+    },
+    datePickerRow: {
+      minHeight: Math.max(240, height * 0.28),
+      maxHeight: Math.min(320, height * 0.38),
+      padding: responsiveSize(10, scale),
+      gap: responsiveSize(10, scale),
+    },
+    progressStep: { width: responsiveSize(12, scale), height: responsiveSize(12, scale), borderRadius: responsiveSize(6, scale) },
+    progressStepActive: { width: responsiveSize(16, scale), height: responsiveSize(16, scale), borderRadius: responsiveSize(8, scale) },
+    progressLine: { width: responsiveSize(36, scale), height: 2, marginHorizontal: responsiveSize(4, scale) },
+    stepTextFontSize: responsiveSize(isSmallScreen ? 13 : 14, scale),
+    navButtonPadding: responsiveSize(14, scale),
+    navButtonMinHeight: responsiveSize(48, scale),
+    navButtonFontSize: responsiveSize(isSmallScreen ? 15 : 16, scale),
+    dateButtonPadding: responsiveSize(16, scale),
+    dateButtonMinHeight: responsiveSize(50, scale),
+    sexButtonPadding: responsiveSize(14, scale),
+    sexButtonMinHeight: responsiveSize(50, scale),
+    sexButtonGap: responsiveSize(8, scale),
+    datePickerOptionPadding: responsiveSize(10, scale),
+    datePickerOptionMinWidth: responsiveSize(44, scale),
+  }), [width, height, scale, isSmallScreen]);
 
   return (
     <View style={[styles.gradientContainer, { backgroundColor: colors.background }]}>
@@ -474,7 +517,7 @@ const LoginScreen: React.FC = () => {
             showsVerticalScrollIndicator={false} 
             contentContainerStyle={[
               styles.scrollContent,
-              { paddingBottom: Math.max(300, height * 0.35) }
+              responsiveStyles.scrollContent,
             ]}
             keyboardShouldPersistTaps="handled"
             bounces={false}
@@ -528,7 +571,8 @@ const LoginScreen: React.FC = () => {
                           <View
                             style={[
                               styles.progressStep,
-                              signupStep >= step && [styles.progressStepActive, { backgroundColor: colors.primaryButton, borderColor: colors.primaryButton }],
+                              responsiveStyles.progressStep,
+                              signupStep >= step && [styles.progressStepActive, responsiveStyles.progressStepActive, { backgroundColor: colors.primaryButton, borderColor: colors.primaryButton }],
                               signupStep < step && { backgroundColor: colors.surface, borderColor: colors.border },
                             ]}
                           />
@@ -536,6 +580,7 @@ const LoginScreen: React.FC = () => {
                             <View
                               style={[
                                 styles.progressLine,
+                                responsiveStyles.progressLine,
                                 { backgroundColor: colors.border },
                                 signupStep > step && [styles.progressLineActive, { backgroundColor: colors.primaryButton }],
                               ]}
@@ -544,7 +589,7 @@ const LoginScreen: React.FC = () => {
                         </View>
                       ))}
                     </View>
-                    <Text style={[styles.stepText, { color: colors.textMuted }]}>
+                    <Text style={[styles.stepText, { color: colors.textMuted, fontSize: responsiveStyles.stepTextFontSize }]}>
                       Pasul {signupStep} din 3
                     </Text>
 
@@ -561,6 +606,8 @@ const LoginScreen: React.FC = () => {
                           scrollViewRef={scrollViewRef}
                           colors={colors}
                           error={fieldErrors.nume}
+                          isSmallScreen={isSmallScreen}
+                          scrollToY={scrollToY}
                         />
                         <InputField
                           placeholder="Prenume"
@@ -572,6 +619,8 @@ const LoginScreen: React.FC = () => {
                           scrollViewRef={scrollViewRef}
                           colors={colors}
                           error={fieldErrors.prenume}
+                          isSmallScreen={isSmallScreen}
+                          scrollToY={scrollToY}
                         />
                       </>
                     )}
@@ -628,7 +677,7 @@ const LoginScreen: React.FC = () => {
                           onRequestClose={() => setShowDatePicker(false)}
                         >
                           <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
-                            <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+                            <View style={[styles.modalContent, { backgroundColor: colors.background }, responsiveStyles.modalContent]}>
                               <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
                                 <Text style={[styles.modalTitle, { color: colors.text }]}>Selectează data nașterii</Text>
                                 <TouchableOpacity
@@ -639,7 +688,7 @@ const LoginScreen: React.FC = () => {
                                 </TouchableOpacity>
                               </View>
 
-                              <View style={[styles.datePickerRow, { backgroundColor: colors.surface }]}>
+                              <View style={[styles.datePickerRow, { backgroundColor: colors.surface }, responsiveStyles.datePickerRow]}>
                                 {/* Zi */}
                                 <View style={styles.datePickerColumn}>
                                   <Text style={[styles.datePickerSubLabel, { color: colors.textMuted }]}>Zi</Text>
@@ -847,6 +896,8 @@ const LoginScreen: React.FC = () => {
                           scrollViewRef={scrollViewRef}
                           colors={colors}
                           error={fieldErrors.telefon}
+                          isSmallScreen={isSmallScreen}
+                          scrollToY={scrollToY}
                         />
                         <InputField
                           placeholder="Parolă"
@@ -859,6 +910,8 @@ const LoginScreen: React.FC = () => {
                           scrollViewRef={scrollViewRef}
                           colors={colors}
                           error={fieldErrors.password}
+                          isSmallScreen={isSmallScreen}
+                          scrollToY={scrollToY}
                         />
                       </>
                     )}
@@ -868,11 +921,11 @@ const LoginScreen: React.FC = () => {
                       {signupStep > 1 && (
                         <TouchableOpacity
                           onPress={prevStep}
-                          style={[styles.navButton, styles.navButtonSecondary, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                          style={[styles.navButton, styles.navButtonSecondary, { backgroundColor: colors.surface, borderColor: colors.border, paddingVertical: responsiveStyles.navButtonPadding, minHeight: responsiveStyles.navButtonMinHeight }]}
                           activeOpacity={0.85}
                         >
                           <Ionicons name="arrow-back" size={18} color={colors.textMuted} />
-                          <Text style={[styles.navButtonTextSecondary, { color: colors.textMuted }]}>Înapoi</Text>
+                          <Text style={[styles.navButtonTextSecondary, { color: colors.textMuted, fontSize: responsiveStyles.navButtonFontSize }]}>Înapoi</Text>
                         </TouchableOpacity>
                       )}
                       <TouchableOpacity
@@ -880,6 +933,7 @@ const LoginScreen: React.FC = () => {
                         style={[
                           styles.navButton,
                           styles.navButtonPrimary,
+                          { paddingVertical: responsiveStyles.navButtonPadding, minHeight: responsiveStyles.navButtonMinHeight },
                           signupStep === 1 && signupStep < 3 && styles.navButtonFullWidth,
                         ]}
                         activeOpacity={0.85}
@@ -889,7 +943,7 @@ const LoginScreen: React.FC = () => {
                           <ActivityIndicator size="small" color="#000" />
                         ) : (
                           <>
-                            <Text style={styles.navButtonTextPrimary}>
+                            <Text style={[styles.navButtonTextPrimary, { fontSize: responsiveStyles.navButtonFontSize }]}>
                               {signupStep < 3 ? "Continuă" : "Finalizează"}
                             </Text>
                             <Ionicons
@@ -918,6 +972,8 @@ const LoginScreen: React.FC = () => {
                       scrollViewRef={scrollViewRef}
                       colors={colors}
                       error={fieldErrors.telefon}
+                      isSmallScreen={isSmallScreen}
+                      scrollToY={scrollToY}
                     />
                     <InputField
                       placeholder="Parolă"
@@ -930,6 +986,8 @@ const LoginScreen: React.FC = () => {
                       scrollViewRef={scrollViewRef}
                       colors={colors}
                       error={fieldErrors.password}
+                      isSmallScreen={isSmallScreen}
+                      scrollToY={scrollToY}
                     />
 
                     {/* Button */}
@@ -952,7 +1010,7 @@ const LoginScreen: React.FC = () => {
                             <Text style={styles.buttonText}>Autentifică-te</Text>
                             <Ionicons
                               name="arrow-forward"
-                              size={isSmallScreen ? 18 : 20}
+                            size={isSmallScreen ? 18 : 20}
                               color="#000"
                               style={styles.buttonIcon}
                             />
@@ -1039,7 +1097,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     justifyContent: "flex-start",
-    paddingHorizontal: Math.max(20, width * 0.06),
+    paddingHorizontal: Math.max(20, Dimensions.get('window').width * 0.06),
     paddingTop: Platform.OS === 'ios' ? 10 : 5,
     paddingBottom: 100,
   },
@@ -1067,7 +1125,7 @@ const styles = StyleSheet.create({
     lineHeight: 34,
   },
   subtitle: {
-    fontSize: isSmallScreen ? 13 : 15,
+    fontSize: smallScreen ? 13 : 15,
     fontWeight: "400",
     color: "#666",
     textAlign: "center",
@@ -1115,7 +1173,7 @@ const styles = StyleSheet.create({
   input: { 
     flex: 1,
     paddingVertical: 14,
-    fontSize: isSmallScreen ? 15 : 16,
+    fontSize: smallScreen ? 15 : 16,
     color: "#1a1a1a",
     fontWeight: "500",
     letterSpacing: 0.2,
@@ -1151,7 +1209,7 @@ const styles = StyleSheet.create({
   buttonText: { 
     color: "#000", 
     fontWeight: "700",
-    fontSize: isSmallScreen ? 15 : 16,
+    fontSize: smallScreen ? 15 : 16,
     letterSpacing: 0.5,
   },
   buttonIcon: {
@@ -1164,7 +1222,7 @@ const styles = StyleSheet.create({
   switchText: { 
     textAlign: "center", 
     color: "#666",
-    fontSize: isSmallScreen ? 14 : 15,
+    fontSize: smallScreen ? 14 : 15,
     fontWeight: "400",
     lineHeight: 20,
   },
@@ -1209,7 +1267,7 @@ const styles = StyleSheet.create({
   },
   stepText: {
     textAlign: 'center',
-    fontSize: isSmallScreen ? 13 : 14,
+    fontSize: smallScreen ? 13 : 14,
     color: '#666',
     fontWeight: '600',
     marginBottom: 20,
@@ -1250,12 +1308,12 @@ const styles = StyleSheet.create({
   navButtonTextPrimary: {
     color: '#000',
     fontWeight: '700',
-    fontSize: isSmallScreen ? 15 : 16,
+    fontSize: smallScreen ? 15 : 16,
   },
   navButtonTextSecondary: {
     color: '#666',
     fontWeight: '600',
-    fontSize: isSmallScreen ? 15 : 16,
+    fontSize: smallScreen ? 15 : 16,
   },
   notificationContainer: {
     position: 'absolute',
@@ -1357,7 +1415,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   dateButtonLabel: {
-    fontSize: isSmallScreen ? 15 : 16,
+    fontSize: smallScreen ? 15 : 16,
     fontWeight: '600',
     color: '#1a1a1a',
     marginBottom: 2,
@@ -1367,7 +1425,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   dateButtonSubLabel: {
-    fontSize: isSmallScreen ? 12 : 13,
+    fontSize: smallScreen ? 12 : 13,
     color: '#666',
     fontWeight: '400',
   },
@@ -1383,7 +1441,7 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: Platform.OS === 'ios' ? 40 : 20,
     paddingHorizontal: 20,
-    maxHeight: height * 0.7,
+    maxHeight: _windowHeight * 0.7,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1395,7 +1453,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E8E8E8',
   },
   modalTitle: {
-    fontSize: isSmallScreen ? 20 : 22,
+    fontSize: smallScreen ? 20 : 22,
     fontWeight: '700',
     color: '#1a1a1a',
   },
@@ -1423,7 +1481,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   datePickerSubLabel: {
-    fontSize: isSmallScreen ? 11 : 12,
+    fontSize: smallScreen ? 11 : 12,
     fontWeight: '600',
     color: '#999',
     marginBottom: 8,
@@ -1457,7 +1515,7 @@ const styles = StyleSheet.create({
     transform: [{ scale: 1.05 }],
   },
   datePickerOptionText: {
-    fontSize: isSmallScreen ? 14 : 15,
+    fontSize: smallScreen ? 14 : 15,
     fontWeight: '600',
     color: '#666',
   },
@@ -1483,12 +1541,12 @@ const styles = StyleSheet.create({
   },
   modalConfirmButtonText: {
     color: '#000',
-    fontSize: isSmallScreen ? 16 : 17,
+    fontSize: smallScreen ? 16 : 17,
     fontWeight: '700',
     letterSpacing: 0.5,
   },
   datePickerHint: {
-    fontSize: isSmallScreen ? 11 : 12,
+    fontSize: smallScreen ? 11 : 12,
     color: '#999',
     textAlign: 'center',
     paddingVertical: 20,
@@ -1498,7 +1556,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   sexSelectorLabel: {
-    fontSize: isSmallScreen ? 14 : 15,
+    fontSize: smallScreen ? 14 : 15,
     fontWeight: '600',
     color: '#666',
     marginBottom: 12,
@@ -1532,7 +1590,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   sexButtonText: {
-    fontSize: isSmallScreen ? 15 : 16,
+    fontSize: smallScreen ? 15 : 16,
     fontWeight: '600',
     color: '#666',
   },

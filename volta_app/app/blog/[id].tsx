@@ -57,7 +57,7 @@ export default function BlogDetails() {
         console.error("Eroare la citirea articolului:", error);
         setPost(null);
       } else if (data) {
-        setPost(data);
+        setPost(data as BlogPost);
       }
     } catch (err) {
       console.error("Eroare:", err);

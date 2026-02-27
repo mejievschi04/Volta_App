@@ -3,16 +3,15 @@ import { View, Text, StyleSheet, Animated, Image, Dimensions } from 'react-nativ
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ThemeContext } from './_context/ThemeContext';
 import { getColors } from './_components/theme';
 
 const { width } = Dimensions.get('window');
 
 export default function Loading() {
   const router = useRouter();
-  const { theme } = React.useContext(ThemeContext);
-  const colors = getColors(theme);
-  const gradientColors = theme === 'dark' ? [colors.background, colors.surface] : ['#FFFFFF', '#FAFAFA'];
+  // Mereu light: ecranul de start / loading nu respectă preferința de temă
+  const colors = getColors('light');
+  const gradientColors = ['#FFFFFF', '#FAFAFA'] as const;
   
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;

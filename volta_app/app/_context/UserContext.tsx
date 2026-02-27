@@ -43,6 +43,11 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (userData) {
           const parsedUser = JSON.parse(userData) as User;
           setUserState(parsedUser);
+          // Sincronizează procentul cardului selectat din datele user-ului
+          const cards = parsedUser.discount_cards ?? [];
+          const selectedId = parsedUser.selected_discount_card_id;
+          const selected = cards.find((c) => c.id === selectedId) ?? cards[0];
+          if (selected) setSelectedCardPercent(selected.discount_value);
         }
         if (tokenData) {
           setTokenState(tokenData);
@@ -74,6 +79,11 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const setUserWithStorage = async (userData: UserOrNull) => {
     setUserState(userData);
     if (userData) {
+      // Sincronizează procentul cardului selectat
+      const cards = userData.discount_cards ?? [];
+      const selectedId = userData.selected_discount_card_id;
+      const selected = cards.find((c) => c.id === selectedId) ?? cards[0];
+      if (selected) setSelectedCardPercent(selected.discount_value);
       try {
         await AsyncStorage.setItem(USER_KEY, JSON.stringify(userData));
       } catch (error) {

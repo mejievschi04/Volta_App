@@ -16,15 +16,15 @@ export const colors = {
     accent: "#FFEE00",
   },
   dark: {
-    background: "#000",
-    surface: "#111",
-    surfaceElevated: "#1a1a1a",
-    border: "#222",
+    background: "#333",
+    surface: "#404040",
+    surfaceElevated: "#4a4a4a",
+    border: "#555",
     primary: "#FFEE00",
     primaryButton: "#FFEE00",
     text: "#FFF",
     textMuted: "#CCC",
-    navBarBg: "#141414",
+    navBarBg: "#3a3a3a",
     navBarBorder: "rgba(255,255,255,0.12)",
     navBarInactive: "#9a9a9a",
     accent: "#333300",
@@ -53,20 +53,20 @@ export const typography = {
   title: {
     fontSize: 24,
     fontWeight: "700" as const,
-    color: colors.primary,
+    color: colors.light.primary,
   },
   subtitle: {
     fontSize: 16,
     fontWeight: "600" as const,
-    color: colors.text,
+    color: colors.light.text,
   },
   body: {
     fontSize: 14,
-    color: colors.text,
+    color: colors.light.text,
   },
   muted: {
     fontSize: 14,
-    color: colors.textMuted,
+    color: colors.light.textMuted,
   },
 };
 

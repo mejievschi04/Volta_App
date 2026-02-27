@@ -14,6 +14,7 @@ module.exports = {
   jwt: {
     secret: process.env.JWT_SECRET || 'volta-dev-secret-schimba-in-productie',
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+    adminExpiresIn: process.env.JWT_ADMIN_EXPIRES_IN || '7d',
   },
 
   db: {
@@ -38,7 +39,7 @@ module.exports = {
     origin: process.env.CORS_ORIGIN
       ? process.env.CORS_ORIGIN.split(',').map((s) => s.trim()).filter(Boolean)
       : '*',
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-Key'],
   },
 

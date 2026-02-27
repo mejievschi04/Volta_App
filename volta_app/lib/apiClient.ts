@@ -18,6 +18,11 @@ function getApiBaseUrl(): string {
 
 const API_BASE_URL = getApiBaseUrl();
 
+/** URL-ul bazei API (pentru debug și verificare conexiune). */
+export function getApiBaseUrlExport(): string {
+  return getApiBaseUrl();
+}
+
 /** Baza pentru URL-uri uploads (același host ca API, fără /api) – pentru imagini pe device/emulator */
 export function getUploadsBaseUrl(): string {
   return API_BASE_URL.replace(/\/api\/?$/, '');
@@ -82,6 +87,9 @@ class ApiClient {
       const url = `${this.baseUrl}${endpoint}`;
       if (isDev) {
         log('Request:', options.method || 'GET', url);
+        if (this.baseUrl.includes('10.0.2.2') && endpoint === '/notifications') {
+          logError('Pe device fizic 10.0.2.2 nu este PC-ul tău. Setează EXPO_PUBLIC_API_URL=http://IP_PC:3000/api în .env și repornește cu npx expo start -c');
+        }
         if (!optionsMeta?.skipLogBody && options.body) log('Body:', options.body);
       }
 
@@ -192,6 +200,22 @@ class ApiClient {
 
   async getUser(id: string | number) {
     return this.request<User>(`/users/${id}`);
+  }
+
+  /** Setează cardul selectat pentru barcode (doar unul poate fi activ). */
+  async setSelectedCard(userId: string | number, cardId: number | null) {
+    return this.request<{ success: boolean; selected_discount_card_id: number | null }>(`/users/${userId}/selected-card`, {
+      method: 'PUT',
+      body: JSON.stringify({ card_id: cardId }),
+    });
+  }
+
+  /** Înregistrează token-ul push Expo pentru notificări. */
+  async setPushToken(userId: string | number, pushToken: string | null) {
+    return this.request<{ success: boolean }>(`/users/${userId}/push-token`, {
+      method: 'PUT',
+      body: JSON.stringify({ push_token: pushToken }),
+    });
   }
 
   async updateUser(id: string | number, updates: {

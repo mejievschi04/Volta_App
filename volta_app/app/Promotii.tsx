@@ -7,7 +7,8 @@ import {
   TouchableOpacity, 
   Image, 
   ActivityIndicator,
-  Animated 
+  Animated,
+  Share,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -36,6 +37,7 @@ export default function Promotii() {
   const router = useRouter();
   const { theme } = useContext(ThemeContext);
   const colors = getColors(theme);
+  const isDark = theme === 'dark';
   const { width, height, isSmallScreen, scale } = useResponsive();
   const [timers, setTimers] = useState<Record<string, { days: number; hours: number; minutes: number; expired: boolean; expiredDays: number }>>({});
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -70,7 +72,11 @@ export default function Promotii() {
       });
   }, [rawPromos]);
   
-  const ITEM_HEIGHT = useMemo(() => Math.round(responsiveHeight(28)), [height]);
+  // Raport 900x450 (2:1) pentru lista promoții
+  const ITEM_HEIGHT = useMemo(() => {
+    const pad = responsiveSize(8, scale) * 2;
+    return Math.round((width - pad) / 2);
+  }, [width, scale]);
 
   useEffect(() => {
     Animated.parallel([
@@ -207,33 +213,89 @@ export default function Promotii() {
                 const isExpired = timeLeft?.expired || false;
                 
                 return (
-                  <TouchableOpacity
+                  <View
                     key={p.id}
+                    pointerEvents="box-none"
                     style={[
-                      responsiveStyles.card,
-                      { 
-                        height: ITEM_HEIGHT, 
-                        marginBottom: index < sortedPromos.length - 1 ? 20 : 0,
-                      }
+                      responsiveStyles.promoItemWrapper,
+                      { marginBottom: index < sortedPromos.length - 1 ? 20 : 0 },
                     ]}
-                    activeOpacity={0.85}
-                    onPress={async () => {
-                      if (p.link) {
-                        try {
-                          await openBrowserAsync(p.link, {
-                            presentationStyle: WebBrowserPresentationStyle.AUTOMATIC,
-                          });
-                        } catch (error) {
-                          console.error('Eroare la deschiderea linkului:', error);
-                        }
-                      } else {
-                        router.push({ 
-                          pathname: "/Promotii/[id]", 
-                          params: { id: String(p.id) } 
-                        } as any);
-                      }
-                    }}
                   >
+                    {/* Timer inline deasupra containerului promoție */}
+                    <View pointerEvents="box-none" style={responsiveStyles.timerRowAbove}>
+                      <View
+                        pointerEvents="box-none"
+                        style={[
+                          responsiveStyles.timerInlinePill,
+                          isExpired && responsiveStyles.timerInlinePillExpired,
+                        ]}
+                      >
+                      {!isExpired && timeLeft ? (
+                        <LinearGradient
+                          pointerEvents="none"
+                          colors={['rgba(0, 0, 0, 0.9)', 'rgba(0, 0, 0, 0.8)']}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 0 }}
+                          style={responsiveStyles.timerBubble}
+                        >
+                          <View style={responsiveStyles.timerIconWrapper}>
+                            <Ionicons name="time-outline" size={12} color="#FFEE00" />
+                          </View>
+                          <View style={styles.timerContent}>
+                            <Text style={responsiveStyles.timerLabel}>timp rămas</Text>
+                            <View style={styles.timerValueRow}>
+                              {timeLeft.days > 0 && (
+                                <>
+                                  <Text style={responsiveStyles.timerNumber}>{timeLeft.days}</Text>
+                                  <Text style={responsiveStyles.timerUnit}>{timeLeft.days === 1 ? 'zi' : 'zile'}</Text>
+                                  <View style={responsiveStyles.timerSeparator} />
+                                </>
+                              )}
+                              <Text style={responsiveStyles.timerNumber}>{String(timeLeft.hours).padStart(2, '0')}</Text>
+                              <Text style={responsiveStyles.timerUnit}>ore</Text>
+                              <View style={responsiveStyles.timerSeparator} />
+                              <Text style={responsiveStyles.timerNumber}>{String(timeLeft.minutes).padStart(2, '0')}</Text>
+                              <Text style={responsiveStyles.timerUnit}>m</Text>
+                            </View>
+                          </View>
+                        </LinearGradient>
+                      ) : (
+                        <View pointerEvents="none" style={responsiveStyles.expiredBubble}>
+                          <View style={responsiveStyles.timerIconWrapperExpired}>
+                            <Ionicons name="time-outline" size={12} color="#999" />
+                          </View>
+                          <View style={styles.timerContent}>
+                            <Text style={responsiveStyles.timerLabelExpired}>promoție</Text>
+                            <Text style={responsiveStyles.timerValueExpired}>expirată</Text>
+                          </View>
+                        </View>
+                      )}
+                      </View>
+                    </View>
+
+                    <TouchableOpacity
+                      style={[
+                        responsiveStyles.card,
+                        { height: ITEM_HEIGHT },
+                      ]}
+                      activeOpacity={0.85}
+                      onPress={async () => {
+                        if (p.link) {
+                          try {
+                            await openBrowserAsync(p.link, {
+                              presentationStyle: WebBrowserPresentationStyle.AUTOMATIC,
+                            });
+                          } catch (error) {
+                            console.error('Eroare la deschiderea linkului:', error);
+                          }
+                        } else {
+                          router.push({ 
+                            pathname: "/Promotii/[id]", 
+                            params: { id: String(p.id) } 
+                          } as any);
+                        }
+                      }}
+                    >
                     <View style={styles.imageContainer}>
                       {imageUri ? (
                         <Image 
@@ -278,48 +340,6 @@ export default function Promotii() {
                       <View style={styles.expiredMask} />
                     )}
                     
-                    <View style={responsiveStyles.timerWrap}>
-                      {!isExpired && timeLeft ? (
-                        <LinearGradient
-                          colors={['rgba(0, 0, 0, 0.9)', 'rgba(0, 0, 0, 0.8)']}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 0 }}
-                          style={responsiveStyles.timerBubble}
-                        >
-                          <View style={responsiveStyles.timerIconWrapper}>
-                            <Ionicons name="time-outline" size={18} color="#FFEE00" />
-                          </View>
-                          <View style={styles.timerContent}>
-                            <Text style={responsiveStyles.timerLabel}>timp rămas</Text>
-                            <View style={styles.timerValueRow}>
-                              {timeLeft.days > 0 && (
-                                <>
-                                  <Text style={responsiveStyles.timerNumber}>{timeLeft.days}</Text>
-                                  <Text style={responsiveStyles.timerUnit}>z</Text>
-                                  <View style={responsiveStyles.timerSeparator} />
-                                </>
-                              )}
-                              <Text style={responsiveStyles.timerNumber}>{String(timeLeft.hours).padStart(2, '0')}</Text>
-                              <Text style={responsiveStyles.timerUnit}>h</Text>
-                              <View style={responsiveStyles.timerSeparator} />
-                              <Text style={responsiveStyles.timerNumber}>{String(timeLeft.minutes).padStart(2, '0')}</Text>
-                              <Text style={responsiveStyles.timerUnit}>m</Text>
-                            </View>
-                          </View>
-                        </LinearGradient>
-                      ) : (
-                        <View style={responsiveStyles.expiredBubble}>
-                          <View style={responsiveStyles.timerIconWrapperExpired}>
-                            <Ionicons name="time-outline" size={16} color="#999" />
-                          </View>
-                          <View style={styles.timerContent}>
-                            <Text style={responsiveStyles.timerLabelExpired}>promoție</Text>
-                            <Text style={responsiveStyles.timerValueExpired}>expirată</Text>
-                          </View>
-                        </View>
-                      )}
-                    </View>
-                    
                     <LinearGradient
                       colors={['transparent', 'rgba(0,0,0,0.9)']}
                       style={styles.overlay}
@@ -341,10 +361,28 @@ export default function Promotii() {
                     <View style={responsiveStyles.arrowButton}>
                       <Ionicons name="arrow-forward-circle" size={32} color={isExpired ? '#999' : '#FFEE00'} />
                     </View>
+
+                    {/* Share button – top right */}
+                    <TouchableOpacity
+                      style={[styles.shareButton, { backgroundColor: isDark ? 'rgba(0,0,0,0.6)' : 'rgba(255,255,255,0.9)' }]}
+                      onPress={(e) => {
+                        e?.stopPropagation?.();
+                        const message = p.link ? `${p.title}\n${p.link}` : p.title;
+                        Share.share({
+                          message,
+                          title: p.title,
+                          url: p.link,
+                        }).catch(() => {});
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="share-outline" size={20} color={isDark ? '#fff' : '#333'} />
+                    </TouchableOpacity>
                   </TouchableOpacity>
+                  </View>
                 );
               })}
-              <View style={{ height: 12 }} />
+              <View style={{ height: 32 }} />
             </ScrollView>
           </Animated.View>
         )}
@@ -366,7 +404,43 @@ const getStyles = (isSmallScreen: boolean, scale: number, width: number) => Styl
   list: { 
     paddingHorizontal: responsiveSize(8, scale),
     paddingTop: responsiveSize(20, scale),
-    paddingBottom: responsiveSize(20, scale),
+    paddingBottom: responsiveSize(20, scale) + 88,
+  },
+  promoItemWrapper: {
+    width: '100%',
+    marginBottom: 0,
+    backgroundColor: '#111',
+    borderRadius: responsiveSize(20, scale),
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  timerRowAbove: {
+    alignSelf: 'stretch',
+    alignItems: 'stretch',
+    marginBottom: 0,
+    backgroundColor: '#1a1a1a',
+    paddingVertical: responsiveSize(10, scale),
+    paddingHorizontal: responsiveSize(14, scale),
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  timerInlinePill: {
+    backgroundColor: 'transparent',
+    borderRadius: 0,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    borderWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  timerInlinePillExpired: {
+    backgroundColor: 'transparent',
+    borderColor: 'transparent',
   },
   title: { 
     fontSize: isSmallScreen ? responsiveSize(28, scale) : responsiveSize(32, scale),
@@ -403,14 +477,17 @@ const getStyles = (isSmallScreen: boolean, scale: number, width: number) => Styl
   card: {
     width: '100%',
     backgroundColor: '#111',
-    borderRadius: responsiveSize(20, scale),
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
+    borderBottomLeftRadius: responsiveSize(20, scale),
+    borderBottomRightRadius: responsiveSize(20, scale),
     overflow: 'hidden',
     justifyContent: 'flex-end',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.4,
-    shadowRadius: 20,
-    elevation: 12,
+    shadowColor: 'transparent',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
     marginHorizontal: 0,
   },
   imageContainer: {
@@ -499,119 +576,118 @@ const getStyles = (isSmallScreen: boolean, scale: number, width: number) => Styl
   cardTitleExpired: {
     color: '#999',
   },
-  timerWrap: { 
-    position: 'absolute', 
-    top: responsiveSize(12, scale),
-    left: responsiveSize(12, scale),
-    zIndex: 20,
-    maxWidth: width - responsiveSize(48, scale),
-  },
   timerBubble: { 
-    paddingHorizontal: responsiveSize(12, scale), 
-    paddingVertical: responsiveSize(10, scale), 
-    borderRadius: responsiveSize(14, scale),
+    paddingHorizontal: responsiveSize(10, scale), 
+    paddingVertical: responsiveSize(4, scale), 
+    borderRadius: responsiveSize(10, scale),
     flexDirection: 'row',
     alignItems: 'center',
-    gap: responsiveSize(10, scale),
+    gap: responsiveSize(6, scale),
+    flex: 1,
+    minHeight: responsiveSize(28, scale),
     shadowColor: '#FFEE00',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
-    borderWidth: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
+    borderWidth: 1.5,
     borderColor: 'rgba(255, 238, 0, 0.4)',
     overflow: 'hidden',
   },
   timerIconWrapper: {
-    width: responsiveSize(28, scale),
-    height: responsiveSize(28, scale),
-    borderRadius: responsiveSize(14, scale),
+    width: responsiveSize(20, scale),
+    height: responsiveSize(20, scale),
+    borderRadius: responsiveSize(10, scale),
     backgroundColor: '#333',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: '#FFEE00',
     shadowColor: '#FFEE00',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
-    shadowRadius: 6,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
   expiredBubble: {
-    paddingHorizontal: responsiveSize(12, scale),
-    paddingVertical: responsiveSize(10, scale),
-    borderRadius: responsiveSize(14, scale),
+    paddingHorizontal: responsiveSize(10, scale),
+    paddingVertical: responsiveSize(4, scale),
+    borderRadius: responsiveSize(10, scale),
     flexDirection: 'row',
     alignItems: 'center',
-    gap: responsiveSize(10, scale),
+    gap: responsiveSize(6, scale),
+    flex: 1,
+    minHeight: responsiveSize(28, scale),
     backgroundColor: 'rgba(100, 100, 100, 0.85)',
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: 'rgba(153, 153, 153, 0.4)',
   },
   timerIconWrapperExpired: {
-    width: responsiveSize(28, scale),
-    height: responsiveSize(28, scale),
-    borderRadius: responsiveSize(14, scale),
+    width: responsiveSize(20, scale),
+    height: responsiveSize(20, scale),
+    borderRadius: responsiveSize(10, scale),
     backgroundColor: 'rgba(153, 153, 153, 0.3)',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: 'rgba(153, 153, 153, 0.5)',
   },
   timerContent: {
-    flexDirection: 'column',
-    gap: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: responsiveSize(6, scale),
+    flex: 1,
   },
   timerValueRow: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
     gap: 2,
   },
   timerNumber: {
     color: '#FFEE00', 
-    fontWeight: '900',
-    fontSize: responsiveSize(15, scale),
+    fontWeight: '800',
+    fontSize: responsiveSize(12, scale),
     letterSpacing: 0,
-    lineHeight: responsiveSize(18, scale),
+    lineHeight: responsiveSize(14, scale),
     textShadowColor: 'rgba(255, 238, 0, 0.5)',
     textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 8,
+    textShadowRadius: 4,
   },
   timerUnit: {
     color: 'rgba(255, 238, 0, 0.8)', 
     fontWeight: '700',
-    fontSize: responsiveSize(11, scale),
-    letterSpacing: 0.5,
-    marginRight: responsiveSize(1, scale),
+    fontSize: responsiveSize(9, scale),
+    letterSpacing: 0.3,
+    marginRight: 0,
   },
   timerSeparator: {
     width: 1,
-    height: responsiveSize(10, scale),
+    height: responsiveSize(8, scale),
     backgroundColor: 'rgba(255, 238, 0, 0.3)',
-    marginHorizontal: responsiveSize(3, scale),
+    marginHorizontal: responsiveSize(2, scale),
     alignSelf: 'center',
   },
   timerLabel: {
     color: 'rgba(255, 238, 0, 0.65)', 
     fontWeight: '600',
-    fontSize: responsiveSize(8, scale),
-    letterSpacing: 0.8,
+    fontSize: responsiveSize(10, scale),
+    letterSpacing: 0.5,
     textTransform: 'uppercase',
-    marginBottom: responsiveSize(1, scale),
+    marginBottom: 0,
   },
   timerLabelExpired: {
     color: 'rgba(153, 153, 153, 0.6)', 
     fontWeight: '600',
-    fontSize: responsiveSize(8, scale),
-    letterSpacing: 0.8,
+    fontSize: responsiveSize(7, scale),
+    letterSpacing: 0.6,
     textTransform: 'uppercase',
-    marginBottom: responsiveSize(1, scale),
+    marginBottom: 0,
   },
   timerValueExpired: {
     color: '#999', 
-    fontWeight: '800',
-    fontSize: responsiveSize(12, scale),
-    letterSpacing: 0.5,
+    fontWeight: '700',
+    fontSize: responsiveSize(10, scale),
+    letterSpacing: 0.3,
   },
 });
 
@@ -661,12 +737,24 @@ const styles = StyleSheet.create({
     zIndex: 20,
   },
   timerContent: {
-    flexDirection: 'column',
-    gap: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   timerValueRow: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
     gap: 2,
+  },
+  shareButton: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 25,
   },
 });

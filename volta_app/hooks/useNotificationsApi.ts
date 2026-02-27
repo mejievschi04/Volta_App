@@ -7,7 +7,12 @@ const NOTIFICATION_IDS_KEY = ['notifications', 'ids'] as const;
 async function fetchNotifications() {
   const { data, error } = await apiClient.getNotifications();
   if (error) throw new Error(error);
-  return Array.isArray(data) ? data : [];
+  const raw = data != null && Array.isArray(data) ? data : (data && typeof data === 'object' && 'data' in data && Array.isArray((data as { data: unknown[] }).data) ? (data as { data: unknown[] }).data : []);
+  if (__DEV__) {
+    if (raw.length > 0) console.log('[Notifications] Primite de la server:', raw.length, 'notificări (toate tipurile sunt afișate).');
+    else console.log('[Notifications] Serverul a returnat 0 notificări. Verifică EXPO_PUBLIC_API_URL în .env (același server ca admin) și npx expo start -c.');
+  }
+  return raw;
 }
 
 async function fetchNotificationIds() {
@@ -20,6 +25,10 @@ export function useNotificationsQuery() {
   return useQuery({
     queryKey: NOTIFICATIONS_KEY,
     queryFn: fetchNotifications,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    retry: 2,
+    retryDelay: 1000,
   });
 }
 

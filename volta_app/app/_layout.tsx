@@ -7,6 +7,7 @@ import * as NavigationBar from 'expo-navigation-bar';
 import BottomMenu from './_components/BottomMenu';
 import { UserProvider, UserContext } from './_context/UserContext';
 import { ThemeProvider, ThemeContext } from './_context/ThemeContext';
+import { NotificationsPrefProvider, NotificationsPrefContext } from './_context/NotificationsPrefContext';
 import { getColors } from './_components/theme';
 import { setOnUnauthorized } from '../lib/apiClient';
 import { useNotifications } from '../hooks/useNotifications';
@@ -22,13 +23,17 @@ const queryClient = new QueryClient({
 
 function ThemedLayout() {
   const { theme } = useContext(ThemeContext);
-  const { setUser, setToken } = useContext(UserContext);
+  const { setUser, setToken, user } = useContext(UserContext);
+  const { notificationsEnabled } = useContext(NotificationsPrefContext);
   const router = useRouter();
-  const colors = getColors(theme);
   const pathname = usePathname();
   const appState = useRef(AppState.currentState);
 
-  useNotifications();
+  // Ecranul de start (index), Loading și Login/Register sunt mereu pe temă light
+  const layoutTheme = pathname === '/' || pathname === '/Loading' || pathname === '/Login' ? 'light' : theme;
+  const colors = getColors(layoutTheme);
+
+  useNotifications(user?.id ?? null, notificationsEnabled);
 
   // La 401 (token invalid/expirat): logout și redirect la Login
   useEffect(() => {
@@ -94,7 +99,9 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <ThemeProvider>
           <UserProvider>
-            <ThemedLayout />
+            <NotificationsPrefProvider>
+              <ThemedLayout />
+            </NotificationsPrefProvider>
           </UserProvider>
         </ThemeProvider>
       </SafeAreaProvider>

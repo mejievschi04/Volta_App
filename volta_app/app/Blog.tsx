@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext, useCallback, useRef } from "react";
+import React, { useEffect, useState, useContext, useCallback, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -8,7 +8,9 @@ import {
   Image,
   ActivityIndicator,
   Animated,
-  Dimensions,
+  type ViewStyle,
+  type TextStyle,
+  type ImageStyle,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -18,9 +20,8 @@ import { useRouter } from "expo-router";
 import { apiClient, resolveImageUrl } from "../lib/apiClient";
 import Screen from "./_components/Screen";
 import EmptyState from "./_components/EmptyState";
-
-const { width } = Dimensions.get('window');
-const isSmallScreen = width < 375;
+import { useBottomMenuInset } from "./_hooks/useBottomMenuInset";
+import { useResponsive, responsiveSize } from "./_hooks/useResponsive";
 
 interface BlogPost {
   id: number;
@@ -39,6 +40,9 @@ export default function Blog() {
   const colors = getColors(theme);
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
+  const bottomInsetForMenu = useBottomMenuInset();
+  const { isSmallScreen, scale } = useResponsive();
+  const responsiveStyles = useMemo(() => StyleSheet.create(getStyles(isSmallScreen, scale)), [isSmallScreen, scale]);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;
 
@@ -66,17 +70,20 @@ export default function Blog() {
       if (error) {
         console.error("Eroare la citirea blogurilor:", error);
       } else if (data) {
-        const processed = data.map((item) => ({
+        const raw = (Array.isArray(data) ? data : []) as Array<{ content?: string; created_at?: string; [key: string]: unknown }>;
+        const processed = raw.map((item) => ({
           ...item,
           excerpt:
-            item.content?.slice(0, 100).trim() +
-            (item.content?.length > 100 ? "..." : ""),
-          date: new Date(item.created_at).toLocaleDateString('ro-RO', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-          }),
-        }));
+            (item.content ?? '').slice(0, 100).trim() +
+            ((item.content ?? '').length > 100 ? "..." : ""),
+          date: item.created_at
+            ? new Date(item.created_at as string).toLocaleDateString('ro-RO', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+              })
+            : '',
+        })) as BlogPost[];
         setPosts(processed);
       }
     } catch (error) {
@@ -92,19 +99,19 @@ export default function Blog() {
 
   return (
     <Screen>
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={[responsiveStyles.container, { backgroundColor: colors.background }]}>
 
         {loading ? (
-          <View style={styles.loadingContainer}>
+          <View style={responsiveStyles.loadingContainer}>
             <ActivityIndicator color={colors.text} size="large" />
-            <Text style={[styles.loadingText, { color: colors.text }]}>
+            <Text style={[responsiveStyles.loadingText, { color: colors.text }]}>
               Se încarcă articolele...
             </Text>
           </View>
         ) : (
           <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
             <ScrollView
-              contentContainerStyle={styles.scroll}
+              contentContainerStyle={[responsiveStyles.scroll, { paddingBottom: bottomInsetForMenu + 24 }]}
               showsVerticalScrollIndicator={false}
             >
               {posts.length === 0 ? (
@@ -118,9 +125,9 @@ export default function Blog() {
                   <Pressable
                     key={p.id}
                     style={[
-                      styles.card,
+                      responsiveStyles.card,
                       { 
-                        marginBottom: index < posts.length - 1 ? 20 : 0,
+                        marginBottom: index < posts.length - 1 ? responsiveSize(20, scale) : 0,
                       }
                     ]}
                     onPress={() =>
@@ -131,52 +138,52 @@ export default function Blog() {
                     }
                     android_ripple={{ color: 'rgba(255,238,0,0.1)' }}
                   >
-                    <View style={styles.imageContainer}>
+                    <View style={responsiveStyles.imageContainer}>
                       {p.image_url ? (
                         <Image 
                           source={{ uri: resolveImageUrl(p.image_url) ?? '' }} 
-                          style={styles.cardImage}
+                          style={responsiveStyles.cardImage}
                           resizeMode="cover"
                         />
                       ) : (
-                        <View style={[styles.cardImage, styles.imagePlaceholder]}>
+                        <View style={[responsiveStyles.cardImage, responsiveStyles.imagePlaceholder]}>
                           <Ionicons name="image-outline" size={40} color={colors.textMuted} />
                         </View>
                       )}
                       <LinearGradient
                         colors={['transparent', 'rgba(0,0,0,0.4)']}
-                        style={styles.imageGradient}
+                        style={responsiveStyles.imageGradient}
                       />
                     </View>
-                    <View style={[styles.cardBody, { backgroundColor: colors.surface }]}>
-                      <View style={styles.cardHeader}>
-                        <View style={[styles.categoryBadge, { backgroundColor: '#333' }]}>
-                          <Text style={[styles.categoryText, { color: colors.primaryButton }]}>
+                    <View style={[responsiveStyles.cardBody, { backgroundColor: colors.surface }]}>
+                      <View style={responsiveStyles.cardHeader}>
+                        <View style={[responsiveStyles.categoryBadge, { backgroundColor: '#333' }]}>
+                          <Text style={[responsiveStyles.categoryText, { color: colors.primaryButton }]}>
                             Blog
                           </Text>
                         </View>
-                        <View style={styles.dateRow}>
+                        <View style={responsiveStyles.dateRow}>
                           <Ionicons name="calendar-outline" size={14} color={colors.textMuted} />
-                          <Text style={[styles.date, { color: colors.textMuted }]}>
+                          <Text style={[responsiveStyles.date, { color: colors.textMuted }]}>
                             {p.date}
                           </Text>
                         </View>
                       </View>
                       <Text 
-                        style={[styles.title, { color: colors.text }]} 
+                        style={[responsiveStyles.title, { color: colors.text }]} 
                         numberOfLines={2}
                       >
                         {p.title}
                       </Text>
                       <Text 
-                        style={[styles.excerpt, { color: colors.textMuted }]} 
+                        style={[responsiveStyles.excerpt, { color: colors.textMuted }]} 
                         numberOfLines={3}
                       >
                         {p.excerpt}
                       </Text>
-                      <View style={styles.cardFooter}>
-                        <View style={[styles.readMoreContainer, { backgroundColor: '#333' }]}>
-                          <Text style={[styles.readMore, { color: colors.primaryButton }]}>
+                      <View style={responsiveStyles.cardFooter}>
+                        <View style={[responsiveStyles.readMoreContainer, { backgroundColor: '#333' }]}>
+                          <Text style={[responsiveStyles.readMore, { color: colors.primaryButton }]}>
                             Citește mai mult
                           </Text>
                           <Ionicons name="arrow-forward" size={16} color={colors.primaryButton} />
@@ -195,145 +202,171 @@ export default function Blog() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 16,
-  },
-  scroll: {
-    paddingHorizontal: 0,
-    paddingTop: 20,
-    paddingBottom: 100,
-  },
-  headerText: {
-    fontSize: isSmallScreen ? 28 : 32,
-    fontWeight: '800',
-    marginBottom: 4,
-    letterSpacing: 0.5,
-  },
-  subtitle: {
-    fontSize: isSmallScreen ? 14 : 15,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 60,
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 60,
-    paddingHorizontal: 40,
-  },
-  emptyText: {
-    marginTop: 16,
-    fontSize: 15,
-    textAlign: "center",
-  },
-  card: {
-    width: '100%',
-    backgroundColor: "transparent",
-    borderRadius: 0,
-    overflow: "hidden",
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  imageContainer: {
-    position: 'relative',
-    width: '100%',
-    height: 220,
-    overflow: 'hidden',
-  },
-  cardImage: {
-    width: "100%",
-    height: "100%",
-    backgroundColor: '#1a1a1a',
-  },
-  imagePlaceholder: {
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: '#1a1a1a',
-  },
-  imageGradient: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: '40%',
-  },
-  cardBody: {
-    padding: 20,
-    borderBottomLeftRadius: 0,
-    borderBottomRightRadius: 0,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  categoryBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  categoryText: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-  },
-  title: {
-    fontSize: isSmallScreen ? 20 : 22,
-    fontWeight: "800",
-    marginBottom: 10,
-    lineHeight: 28,
-    letterSpacing: 0.2,
-  },
-  excerpt: {
-    fontSize: isSmallScreen ? 15 : 16,
-    lineHeight: 24,
-    marginBottom: 16,
-    letterSpacing: 0.1,
-  },
-  cardFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-  },
-  readMoreContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 6,
-  },
-  readMore: {
-    fontSize: 13,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-  dateRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  date: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-});
+function getStyles(isSmallScreen: boolean, scale: number): {
+  container: ViewStyle;
+  header: ViewStyle;
+  scroll: ViewStyle;
+  headerText: TextStyle;
+  subtitle: TextStyle;
+  loadingContainer: ViewStyle;
+  loadingText: TextStyle;
+  emptyContainer: ViewStyle;
+  emptyText: TextStyle;
+  card: ViewStyle;
+  imageContainer: ViewStyle;
+  cardImage: ImageStyle;
+  imagePlaceholder: ViewStyle;
+  imageGradient: ViewStyle;
+  cardBody: ViewStyle;
+  cardHeader: ViewStyle;
+  categoryBadge: ViewStyle;
+  categoryText: TextStyle;
+  title: TextStyle;
+  excerpt: TextStyle;
+  cardFooter: ViewStyle;
+  readMoreContainer: ViewStyle;
+  readMore: TextStyle;
+  dateRow: ViewStyle;
+  date: TextStyle;
+} {
+  return {
+    container: { flex: 1 },
+    header: {
+      paddingHorizontal: responsiveSize(20, scale),
+      paddingTop: responsiveSize(20, scale),
+      paddingBottom: responsiveSize(16, scale),
+    },
+    scroll: {
+      paddingHorizontal: 0,
+      paddingTop: responsiveSize(20, scale),
+      paddingBottom: 100,
+    },
+    headerText: {
+      fontSize: responsiveSize(isSmallScreen ? 28 : 32, scale),
+      fontWeight: '800' as const,
+      marginBottom: 4,
+      letterSpacing: 0.5,
+    },
+    subtitle: {
+      fontSize: responsiveSize(isSmallScreen ? 14 : 15, scale),
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: "center" as const,
+      alignItems: "center" as const,
+      marginTop: responsiveSize(60, scale),
+    },
+    loadingText: {
+      marginTop: responsiveSize(12, scale),
+      fontSize: responsiveSize(14, scale),
+    },
+    emptyContainer: {
+      flex: 1,
+      justifyContent: "center" as const,
+      alignItems: "center" as const,
+      marginTop: responsiveSize(60, scale),
+      paddingHorizontal: responsiveSize(40, scale),
+    },
+    emptyText: {
+      marginTop: responsiveSize(16, scale),
+      fontSize: responsiveSize(15, scale),
+      textAlign: "center" as const,
+    },
+    card: {
+      width: '100%',
+      backgroundColor: "transparent",
+      borderRadius: 0,
+      overflow: "hidden" as const,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.15,
+      shadowRadius: 16,
+      elevation: 8,
+    },
+    imageContainer: {
+      position: 'relative' as const,
+      width: '100%',
+      height: responsiveSize(220, scale),
+      overflow: 'hidden' as const,
+    },
+    cardImage: {
+      width: "100%",
+      height: "100%",
+      backgroundColor: '#1a1a1a',
+    },
+    imagePlaceholder: {
+      alignItems: "center" as const,
+      justifyContent: "center" as const,
+      backgroundColor: '#1a1a1a',
+    },
+    imageGradient: {
+      position: 'absolute' as const,
+      bottom: 0,
+      left: 0,
+      right: 0,
+      height: '40%',
+    },
+    cardBody: {
+      padding: responsiveSize(20, scale),
+      borderBottomLeftRadius: 0,
+      borderBottomRightRadius: 0,
+    },
+    cardHeader: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      justifyContent: 'space-between',
+      marginBottom: responsiveSize(12, scale),
+    },
+    categoryBadge: {
+      paddingHorizontal: responsiveSize(10, scale),
+      paddingVertical: responsiveSize(4, scale),
+      borderRadius: responsiveSize(12, scale),
+    },
+    categoryText: {
+      fontSize: responsiveSize(11, scale),
+      fontWeight: '700' as const,
+      letterSpacing: 0.5,
+      textTransform: 'uppercase' as const,
+    },
+    title: {
+      fontSize: responsiveSize(isSmallScreen ? 20 : 22, scale),
+      fontWeight: "800" as const,
+      marginBottom: responsiveSize(10, scale),
+      lineHeight: responsiveSize(28, scale),
+      letterSpacing: 0.2,
+    },
+    excerpt: {
+      fontSize: responsiveSize(isSmallScreen ? 15 : 16, scale),
+      lineHeight: responsiveSize(24, scale),
+      marginBottom: responsiveSize(16, scale),
+      letterSpacing: 0.1,
+    },
+    cardFooter: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      justifyContent: 'flex-start' as const,
+    },
+    readMoreContainer: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      paddingHorizontal: responsiveSize(14, scale),
+      paddingVertical: responsiveSize(8, scale),
+      borderRadius: responsiveSize(20, scale),
+      gap: responsiveSize(6, scale),
+    },
+    readMore: {
+      fontSize: responsiveSize(13, scale),
+      fontWeight: '700' as const,
+      letterSpacing: 0.3,
+    },
+    dateRow: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: responsiveSize(6, scale),
+    },
+    date: {
+      fontSize: responsiveSize(12, scale),
+      fontWeight: '600' as const,
+    },
+  };
+}

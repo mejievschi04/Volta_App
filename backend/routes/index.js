@@ -10,6 +10,7 @@ const blog = require('./blog');
 const messages = require('./messages');
 const upload = require('./upload');
 const health = require('./health');
+const admin = require('./admin');
 
 const router = express.Router();
 
@@ -21,6 +22,7 @@ router.use('/blog', blog);
 router.use('/messages', messages);
 router.use('/upload', upload);
 router.use('/health', health);
+router.use('/admin', admin);
 
 const notFound = require('../middleware/notFound');
 router.use(notFound);

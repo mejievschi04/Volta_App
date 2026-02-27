@@ -34,6 +34,24 @@ export default function BottomMenu() {
   const { user, selectedCardPercent } = useContext(UserContext);
   const colors = getColors(theme);
 
+  // Cardul selectat pentru barcode (din user, ca pe Profil)
+  const activeCards = (user?.discount_cards ?? []).filter(
+    (c) => !c.expires_at || new Date(c.expires_at) > new Date()
+  );
+  const selectedCardId = user?.selected_discount_card_id;
+  const selectedCard = activeCards.find((c) => c.id === selectedCardId) ?? activeCards[0];
+  const displayPercent = selectedCard?.discount_value ?? selectedCardPercent ?? 10;
+  const displayCardCode =
+    user?.id != null && selectedCard?.id != null
+      ? `VOLTA-${user.id}-${selectedCard.id}`.slice(0, 20)
+      : `VOLTA-${user?.id ? String(user.id).slice(0, 4).toUpperCase() : "0000"}`;
+  const displayBarcodeValue =
+    user?.id != null && selectedCard?.id != null
+      ? `${String(user.id).padStart(6, "0")}${String(selectedCard.id).padStart(6, "0")}`.slice(0, 12)
+      : user?.id
+        ? String(user.id).slice(0, 12)
+        : "458712345678";
+
   const insetsBottom = Math.max(8, insets.bottom);
   const pathname = usePathname();
 
@@ -398,7 +416,7 @@ export default function BottomMenu() {
             id={item.id}
             label={item.label}
             iconName={item.iconName}
-            onPress={() => router.push(item.route)}
+            onPress={() => router.push(item.route as any)}
             index={index}
             route={item.route}
           />
@@ -434,7 +452,7 @@ export default function BottomMenu() {
             id={item.id}
             label={item.label}
             iconName={item.iconName}
-            onPress={() => router.push(item.route)}
+            onPress={() => router.push(item.route as any)}
             index={index + 2}
             route={item.route}
           />
@@ -481,10 +499,13 @@ export default function BottomMenu() {
               </TouchableOpacity>
               <View style={styles.barcodeOnlyContent}>
                 <Text style={[styles.barcodeCodeLabel, { color: colors.textMuted }]}>
-                  Reducere {selectedCardPercent}%
+                  Reducere {displayPercent}%
                 </Text>
                 <Text style={[styles.barcodeCode, { color: colors.text }]}>
-                  VOLTA-{user?.id ? String(user.id).slice(0, 4).toUpperCase() : "0000"}
+                  {displayCardCode}
+                </Text>
+                <Text style={[styles.barcodeCodeLabel, { color: colors.textMuted, marginBottom: 8 }]}>
+                  {displayBarcodeValue}
                 </Text>
                 <View style={styles.barcodeOnlyWrap}>
                   {renderBarcode(100, 2.5)}

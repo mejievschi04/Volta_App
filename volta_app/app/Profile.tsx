@@ -185,8 +185,9 @@ const ProfileScreen = () => {
       if (newNotifications.length > 0 && lastNotificationIdsRef.current.size > 0) {
         // Nu trimitem notificare la prima încărcare
         for (const notif of newNotifications) {
-          const notifTitle = notif.title || 'Notificare nouă';
-          const notifMessage = notif.message || notif.messsage || '';
+          const n = notif as { id: number; title?: string; message?: string; messsage?: string };
+          const notifTitle = n.title || 'Notificare nouă';
+          const notifMessage = n.message || n.messsage || '';
           
           await Notifications.scheduleNotificationAsync({
             content: {
@@ -369,146 +370,162 @@ const ProfileScreen = () => {
               </Animated.View>
             )}
 
-          {/* Carduri reducere – încap în layout, fără tăiere */}
-          <View style={styles.cardsSwipeContainer}>
-            <ScrollView
-              ref={cardsScrollRef}
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              decelerationRate="fast"
-              snapToInterval={screenWidth - 2 * spacing.lg}
-              snapToAlignment="center"
-              contentContainerStyle={styles.cardsSwipeContent}
-              onMomentumScrollEnd={(e) => {
-                const pageW = screenWidth - 2 * spacing.lg;
-                const idx = Math.round(e.nativeEvent.contentOffset.x / pageW);
-                setCardIndex(idx);
-              }}
-            >
-              {selectedCardPercent === 10 ? (
-                <>
-                  <View style={[styles.cardPage, { width: screenWidth - 2 * spacing.lg }]}>
-                    <DiscountCard
-                      name={cardName}
-                      discountValue={10}
-                      cardCode={`VOLTA-${displayUserData?.id ? String(displayUserData.id).slice(0, 4).toUpperCase() : "0000"}`}
-                      barcodeValue={displayUserData?.id ? String(displayUserData.id).slice(0, 12) : "458712345678"}
-                      profileMode
-                      variant="primary"
-                      maxWidth={screenWidth - 2 * spacing.lg - 16}
+          {/* Carduri reducere – aspect ca înainte; date din API, un singur card selectat pentru barcode */}
+          {(() => {
+            const cards = (displayUserData as any)?.discount_cards as { id: number; discount_value: 5 | 10; expires_at: string | null }[] | undefined;
+            const activeCards = Array.isArray(cards) ? cards.filter((c) => !c.expires_at || new Date(c.expires_at) > new Date()) : [];
+            const selectedId = (displayUserData as any)?.selected_discount_card_id as number | null | undefined;
+            const selectedCard = activeCards.find((c) => c.id === selectedId) || activeCards[0];
+            if (activeCards.length === 0) return null;
+            const pageWidth = screenWidth - 2 * spacing.lg;
+            return (
+              <View style={responsiveStyles.cardsSwipeContainer}>
+                <ScrollView
+                  ref={cardsScrollRef}
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  decelerationRate="fast"
+                  snapToInterval={pageWidth}
+                  snapToAlignment="center"
+                  contentContainerStyle={responsiveStyles.cardsSwipeContent}
+                  onMomentumScrollEnd={(e) => {
+                    const idx = Math.round(e.nativeEvent.contentOffset.x / pageWidth);
+                    setCardIndex(idx);
+                  }}
+                >
+                  {activeCards.map((card) => {
+                    const isSelected = card.id === selectedCard?.id;
+                    return (
+                      <View key={card.id} style={[responsiveStyles.cardPage, { width: pageWidth }]}>
+                        <DiscountCard
+                          name={cardName}
+                          discountValue={card.discount_value}
+                          cardCode={`VOLTA-${displayUserData?.id ?? ''}-${card.id}`.slice(0, 20) || "VOLTA-0000"}
+                          barcodeValue={displayUserData?.id != null && card.id != null
+                            ? `${String(displayUserData.id).padStart(6, '0')}${String(card.id).padStart(6, '0')}`.slice(0, 12)
+                            : "458712345678"}
+                          profileMode
+                          variant={card.discount_value === 5 ? 'secondary' : 'primary'}
+                          maxWidth={pageWidth - 16}
+                        />
+                        {isSelected ? (
+                          <View style={[responsiveStyles.cardSelectButton, responsiveStyles.cardSelectButtonSelected, { borderColor: '#22c55e', backgroundColor: 'rgba(34, 197, 94, 0.12)' }]}>
+                            <Ionicons name="checkmark-circle" size={16} color="#22c55e" />
+                            <Text style={[responsiveStyles.cardSelectButtonText, { color: '#22c55e' }]}>Selectat</Text>
+                          </View>
+                        ) : (
+                          <TouchableOpacity
+                            style={[responsiveStyles.cardSelectButton, { borderColor: isDark ? colors.primaryButton : '#000' }]}
+                            onPress={async () => {
+                              if (!displayUserData?.id) return;
+                              const { error } = await apiClient.setSelectedCard(displayUserData.id, card.id);
+                              if (error) return;
+                              const { data } = await apiClient.getUser(displayUserData.id);
+                              if (data) {
+                                setUserData(data);
+                                setUser(data);
+                                setSelectedCardPercent(card.discount_value);
+                              }
+                            }}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={[responsiveStyles.cardSelectButtonText, { color: isDark ? colors.primaryButton : '#000' }]}>Selectează</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+                <View style={responsiveStyles.cardDots}>
+                  {activeCards.map((_, idx) => (
+                    <View
+                      key={idx}
+                      style={[
+                        responsiveStyles.cardDot,
+                        { backgroundColor: isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.2)' },
+                        cardIndex === idx && responsiveStyles.cardDotActive,
+                      ]}
                     />
-                    <View style={[styles.cardSelectButton, styles.cardSelectButtonSelected, { borderColor: colors.border }]}>
-                      <Ionicons name="checkmark-circle" size={16} color={colors.textMuted} />
-                      <Text style={[styles.cardSelectButtonText, { color: colors.textMuted }]}>Selectat</Text>
-                    </View>
-                  </View>
-                  <View style={[styles.cardPage, { width: screenWidth - 2 * spacing.lg }]}>
-                    <DiscountCard
-                      name={cardName}
-                      discountValue={5}
-                      cardCode={`VOLTA-${displayUserData?.id ? String(displayUserData.id).slice(0, 4).toUpperCase() : "0000"}`}
-                      barcodeValue={displayUserData?.id ? String(displayUserData.id).slice(0, 12) : "458712345678"}
-                      profileMode
-                      variant="secondary"
-                      maxWidth={screenWidth - 2 * spacing.lg - 16}
-                    />
-                    <TouchableOpacity
-                      style={[styles.cardSelectButton, { borderColor: isDark ? colors.primaryButton : '#000' }]}
-                      onPress={() => {
-                        setSelectedCardPercent(5);
-                        setCardIndex(0);
-                        cardsScrollRef.current?.scrollTo({ x: 0, animated: true });
-                      }}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={[styles.cardSelectButtonText, { color: isDark ? colors.primaryButton : '#000' }]}>Selectează</Text>
-                    </TouchableOpacity>
-                  </View>
-                </>
-              ) : (
-                <>
-                  <View style={[styles.cardPage, { width: screenWidth - 2 * spacing.lg }]}>
-                    <DiscountCard
-                      name={cardName}
-                      discountValue={5}
-                      cardCode={`VOLTA-${displayUserData?.id ? String(displayUserData.id).slice(0, 4).toUpperCase() : "0000"}`}
-                      barcodeValue={displayUserData?.id ? String(displayUserData.id).slice(0, 12) : "458712345678"}
-                      profileMode
-                      variant="secondary"
-                      maxWidth={screenWidth - 2 * spacing.lg - 16}
-                    />
-                    <View style={[styles.cardSelectButton, styles.cardSelectButtonSelected, { backgroundColor: colors.navBarBg, borderColor: colors.navBarBorder }]}>
-                      <Ionicons name="checkmark-circle" size={16} color={colors.navBarInactive} />
-                      <Text style={[styles.cardSelectButtonText, { color: colors.navBarInactive }]}>Selectat</Text>
-                    </View>
-                  </View>
-                  <View style={[styles.cardPage, { width: screenWidth - 2 * spacing.lg }]}>
-                    <DiscountCard
-                      name={cardName}
-                      discountValue={10}
-                      cardCode={`VOLTA-${displayUserData?.id ? String(displayUserData.id).slice(0, 4).toUpperCase() : "0000"}`}
-                      barcodeValue={displayUserData?.id ? String(displayUserData.id).slice(0, 12) : "458712345678"}
-                      profileMode
-                      variant="primary"
-                      maxWidth={screenWidth - 2 * spacing.lg - 16}
-                    />
-                    <TouchableOpacity
-                      style={[styles.cardSelectButton, { borderColor: isDark ? colors.primaryButton : '#000' }]}
-                      onPress={() => {
-                        setSelectedCardPercent(10);
-                        setCardIndex(0);
-                        cardsScrollRef.current?.scrollTo({ x: 0, animated: true });
-                      }}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={[styles.cardSelectButtonText, { color: isDark ? colors.primaryButton : '#000' }]}>Selectează</Text>
-                    </TouchableOpacity>
-                  </View>
-                </>
-              )}
-            </ScrollView>
-            <View style={styles.cardDots}>
-              <View style={[styles.cardDot, { backgroundColor: isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.2)' }, cardIndex === 0 && styles.cardDotActive]} />
-              <View style={[styles.cardDot, { backgroundColor: isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.2)' }, cardIndex === 1 && styles.cardDotActive]} />
-            </View>
-          </View>
+                  ))}
+                </View>
+              </View>
+            );
+          })()}
 
           {/* Action Buttons */}
-          <View style={styles.actionsSection}>
+          <View style={responsiveStyles.actionsSection}>
             <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: isDark ? colors.surface : 'transparent', borderColor: colors.border }]}
+              style={[
+                responsiveStyles.actionButton,
+                {
+                  backgroundColor: isDark ? colors.surface : colors.surface,
+                  borderColor: isDark ? colors.border : colors.border,
+                },
+              ]}
               onPress={() => router.push("/Notifications")}
               activeOpacity={0.7}
               accessibilityLabel="Notificări"
               accessibilityRole="button"
               accessibilityHint="Deschide lista de notificări"
             >
-              <View style={[styles.actionIconContainer, { backgroundColor: isDark ? colors.surface : '#333' }]}>
-                <Ionicons name="notifications-outline" size={24} color={colors.primaryButton} />
+              <View
+                style={[
+                  responsiveStyles.actionIconContainer,
+                  {
+                    backgroundColor: isDark ? '#000' : '#1a1a1a',
+                  },
+                ]}
+              >
+                <Ionicons
+                  name="notifications-outline"
+                  size={responsiveSize(22, scale)}
+                  color={colors.primaryButton}
+                />
                 {unreadCount > 0 && (
-                  <View style={[styles.badge, { borderColor: isDark ? colors.background : '#FFFFFF' }]}>
-                    <Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+                  <View style={[responsiveStyles.badge, { borderColor: colors.surface }]}>
+                    <Text style={responsiveStyles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
                   </View>
                 )}
               </View>
-              <Text style={[responsiveStyles.actionLabel, { color: isDark ? colors.primaryButton : '#000' }]}>Notificări</Text>
-              <Ionicons name="chevron-forward" size={20} color={isDark ? colors.primaryButton : '#000'} />
+              <Text style={[responsiveStyles.actionLabel, { color: colors.text }]} numberOfLines={1}>
+                Notificări
+              </Text>
+              <Ionicons name="chevron-forward" size={responsiveSize(20, scale)} color={colors.textMuted} />
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: isDark ? colors.surface : 'transparent', borderColor: colors.border }]}
+              style={[
+                responsiveStyles.actionButton,
+                {
+                  backgroundColor: isDark ? colors.surface : colors.surface,
+                  borderColor: isDark ? colors.border : colors.border,
+                },
+              ]}
               onPress={() => router.push("/Settings")}
               activeOpacity={0.7}
               accessibilityLabel="Setări"
               accessibilityRole="button"
               accessibilityHint="Deschide ecranul de setări"
             >
-              <View style={[styles.actionIconContainer, { backgroundColor: isDark ? colors.surface : '#333' }]}>
-                <Ionicons name="settings-outline" size={24} color={colors.primaryButton} />
+              <View
+                style={[
+                  responsiveStyles.actionIconContainer,
+                  {
+                    backgroundColor: isDark ? '#000' : '#1a1a1a',
+                  },
+                ]}
+              >
+                <Ionicons
+                  name="settings-outline"
+                  size={responsiveSize(22, scale)}
+                  color={colors.primaryButton}
+                />
               </View>
-              <Text style={[responsiveStyles.actionLabel, { color: isDark ? colors.primaryButton : '#000' }]}>Setări</Text>
-              <Ionicons name="chevron-forward" size={20} color={isDark ? colors.primaryButton : '#000'} />
+              <Text style={[responsiveStyles.actionLabel, { color: colors.text }]} numberOfLines={1}>
+                Setări
+              </Text>
+              <Ionicons name="chevron-forward" size={responsiveSize(20, scale)} color={colors.textMuted} />
             </TouchableOpacity>
           </View>
 
@@ -621,39 +638,40 @@ const getStyles = (isSmallScreen: boolean, scale: number) => StyleSheet.create({
   },
   actionsSection: {
     paddingHorizontal: 0,
-    marginBottom: 16,
-    gap: 0,
+    marginBottom: responsiveSize(20, scale),
+    gap: responsiveSize(10, scale),
     width: '100%',
   },
   actionButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: responsiveSize(14, scale),
+    paddingHorizontal: responsiveSize(16, scale),
     borderRadius: 12,
     borderWidth: 1,
-    marginBottom: 12,
+    marginBottom: responsiveSize(10, scale),
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
     elevation: 2,
     width: '100%',
+    minHeight: 56,
   },
   actionIconContainer: {
-    width: 40,
-    height: 40,
+    width: responsiveSize(44, scale),
+    height: responsiveSize(44, scale),
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: responsiveSize(14, scale),
     position: 'relative',
   },
   badge: {
     position: 'absolute',
     top: -4,
     right: -4,
-    backgroundColor: '#FF0000',
+    backgroundColor: '#E53935',
     borderRadius: 10,
     minWidth: 20,
     height: 20,
@@ -668,9 +686,9 @@ const getStyles = (isSmallScreen: boolean, scale: number) => StyleSheet.create({
     fontWeight: '800',
     textAlign: 'center',
   },
-  actionLabel: { 
+  actionLabel: {
     flex: 1,
-    fontSize: isSmallScreen ? responsiveSize(15, scale) : responsiveSize(16, scale),
+    fontSize: isSmallScreen ? responsiveSize(16, scale) : responsiveSize(17, scale),
     fontWeight: '600',
   },
   logoutBtn: {
@@ -698,13 +716,10 @@ const getStyles = (isSmallScreen: boolean, scale: number) => StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 0.5,
   },
-});
-
-// Static styles that don't need responsive values
-const styles = StyleSheet.create({
+  // Card swipe section – responsive
   cardsSwipeContainer: {
     width: '100%',
-    marginBottom: 20,
+    marginBottom: responsiveSize(20, scale),
     alignItems: 'center',
   },
   cardsSwipeContent: {
@@ -714,99 +729,43 @@ const styles = StyleSheet.create({
   cardPage: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
+    paddingVertical: responsiveSize(16, scale),
     paddingHorizontal: 0,
   },
   cardDots: {
-    flexDirection: 'row',
+    flexDirection: 'row' as const,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
-    marginTop: 8,
+    gap: responsiveSize(8, scale),
+    marginTop: responsiveSize(8, scale),
   },
   cardDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: responsiveSize(8, scale),
+    height: responsiveSize(8, scale),
+    borderRadius: responsiveSize(4, scale),
   },
   cardDotActive: {
     backgroundColor: '#FFEE00',
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: responsiveSize(10, scale),
+    height: responsiveSize(10, scale),
+    borderRadius: responsiveSize(5, scale),
   },
   cardSelectButton: {
-    flexDirection: 'row',
+    flexDirection: 'row' as const,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    marginTop: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
+    gap: responsiveSize(6, scale),
+    marginTop: responsiveSize(10, scale),
+    paddingVertical: responsiveSize(8, scale),
+    paddingHorizontal: responsiveSize(16, scale),
+    borderRadius: responsiveSize(20, scale),
     borderWidth: 1.5,
   },
   cardSelectButtonSelected: {
     opacity: 0.9,
   },
   cardSelectButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  cardContainer: {
-    marginHorizontal: 0,
-    marginBottom: 16,
-    paddingHorizontal: 0,
-    width: '100%',
-    alignItems: 'center',
-  },
-  actionsSection: {
-    paddingHorizontal: 0,
-    marginBottom: 16,
-    gap: 0,
-    width: '100%',
-  },
-  actionButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
-    width: '100%',
-  },
-  actionIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-    position: 'relative',
-  },
-  badge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    backgroundColor: '#FF0000',
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    paddingHorizontal: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-  },
-  badgeText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '800',
-    textAlign: 'center',
+    fontSize: responsiveSize(13, scale),
+    fontWeight: '600' as const,
   },
 });

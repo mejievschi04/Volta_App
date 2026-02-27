@@ -1,9 +1,12 @@
 const { pool } = require('../config/database');
+const { sendPushToTokens } = require('../lib/pushNotifications');
 
 async function list(req, res, next) {
   try {
     const result = await pool.query('SELECT * FROM notifications ORDER BY created_at DESC');
-    res.json(result.rows);
+    const list = result.rows || [];
+    if (process.env.NODE_ENV !== 'test') console.log('[Notifications] GET / – returning', list.length, 'items');
+    res.json({ data: list });
   } catch (err) {
     next(err);
   }
@@ -26,9 +29,24 @@ async function create(req, res, next) {
     }
     const result = await pool.query(
       'INSERT INTO notifications (title, message, type) VALUES ($1, $2, $3) RETURNING id',
-      [title, message, type || 'info']
+      [title, message, type || 'promovare']
     );
-    res.json({ success: true, id: result.rows[0].id, message: 'Notificare creată cu succes' });
+    const notifId = result.rows[0].id;
+
+    const tokensResult = await pool.query(
+      'SELECT expo_push_token FROM users WHERE expo_push_token IS NOT NULL AND expo_push_token != \'\''
+    );
+    const tokens = tokensResult.rows.map((r) => r.expo_push_token).filter(Boolean);
+    if (tokens.length > 0) {
+      console.log('[Notifications] Notificare creată, push la', tokens.length, 'utilizator(i) cu token.');
+      sendPushToTokens(tokens, title, message, { type: 'notification', id: notifId }).catch((err) =>
+        console.error('[Notifications] Push send error:', err.message)
+      );
+    } else {
+      console.log('[Notifications] Notificare creată. Niciun utilizator cu token push înregistrat – deschide aplicația, fii logat și acceptă notificările.');
+    }
+
+    res.json({ success: true, id: notifId, message: 'Notificare creată cu succes' });
   } catch (err) {
     next(err);
   }

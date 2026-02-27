@@ -5,25 +5,26 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
-  KeyboardAvoidingView,
   Platform,
   ScrollView,
   Animated,
   Dimensions,
   Alert,
   ActivityIndicator,
+  Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { ThemeContext } from './_context/ThemeContext';
 import { UserContext } from './_context/UserContext';
 import Screen from './_components/Screen';
-import { getColors } from './_components/theme';
+import { getColors, spacing } from './_components/theme';
 import { useResponsive, responsiveSize } from './_hooks/useResponsive';
 import { apiClient } from '../lib/apiClient';
 import { useMessages } from '../hooks/useMessages';
 import ApiErrorView from './_components/ApiErrorView';
 import EmptyState from './_components/EmptyState';
+import { useBottomMenuInset } from './_hooks/useBottomMenuInset';
 
 const { width } = Dimensions.get('window');
 
@@ -43,6 +44,8 @@ export default function Mesaje() {
   const isDark = theme === 'dark';
   const router = useRouter();
   const { scale } = useResponsive();
+  const bottomInsetForMenu = useBottomMenuInset();
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   const [messageText, setMessageText] = useState('');
   const [sending, setSending] = useState(false);
@@ -50,10 +53,25 @@ export default function Mesaje() {
   const scrollViewRef = useRef<ScrollView>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => setKeyboardHeight(e.endCoordinates.height)
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setKeyboardHeight(0)
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
   const { data: messagesData, isError: messagesError, error: messagesErrorObj, refetch, isLoading: messagesLoading } = useMessages(user?.id ?? null, { refetchInterval: 3000 });
   const serverMessages = Array.isArray(messagesData) ? messagesData : [];
-  const messages = [...serverMessages, ...optimisticMessages].sort(
-    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  const messages = ([...serverMessages, ...optimisticMessages] as Array<{ id?: string | number; created_at?: string; message?: string; is_from_admin?: boolean; [key: string]: unknown }>).sort(
+    (a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
   );
 
   useEffect(() => {
@@ -131,14 +149,11 @@ export default function Mesaje() {
   }, []);
 
   return (
-    <Screen padded={false}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.container}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-      >
-        {/* Header */}
-        <Animated.View
+    <Screen padded={false} style={{ paddingBottom: 0 }}>
+      <View style={styles.container}>
+        <View style={[styles.innerContainer, { paddingBottom: bottomInsetForMenu }]}>
+          {/* Header */}
+          <Animated.View
           style={[
             styles.header,
             {
@@ -176,12 +191,17 @@ export default function Mesaje() {
           </TouchableOpacity>
         </Animated.View>
 
-        {/* Messages List */}
+        {/* Messages List – padding jos ca ultimul mesaj să fie deasupra barei */}
         <ScrollView
           ref={scrollViewRef}
           style={styles.messagesContainer}
-          contentContainerStyle={styles.messagesContent}
+          contentContainerStyle={[
+            styles.messagesContent,
+            { paddingBottom: 70 + (keyboardHeight > 0 ? keyboardHeight : bottomInsetForMenu) },
+          ]}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
         >
           {user && messagesError ? (
             <View style={[styles.emptyContainer, { paddingVertical: 32 }]}>
@@ -245,7 +265,7 @@ export default function Mesaje() {
                         { color: isSent ? 'rgba(0,0,0,0.5)' : colors.textMuted },
                       ]}
                     >
-                      {formatTime(message.created_at)}
+                      {formatTime(message.created_at ?? '')}
                     </Text>
                   </View>
                 </View>
@@ -254,11 +274,15 @@ export default function Mesaje() {
           )}
         </ScrollView>
 
-        {/* Input Container */}
+        {/* Bara de input – fix jos, deasupra tastaturii sau deasupra meniului */}
         <Animated.View
           style={[
             styles.inputContainer,
             {
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              bottom: keyboardHeight > 0 ? keyboardHeight : bottomInsetForMenu,
               backgroundColor: isDark ? colors.surface : '#FFF',
               borderTopColor: colors.border,
               opacity: fadeAnim,
@@ -309,13 +333,17 @@ export default function Mesaje() {
             </TouchableOpacity>
           </View>
         </Animated.View>
-      </KeyboardAvoidingView>
+      </View>
+      </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  innerContainer: {
     flex: 1,
   },
   header: {
@@ -370,9 +398,9 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   messagesContent: {
-    paddingHorizontal: 8,
+    paddingHorizontal: spacing.md,
     paddingTop: 16,
-    paddingBottom: 8,
+    paddingBottom: 24,
   },
   emptyContainer: {
     flex: 1,

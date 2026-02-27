@@ -39,7 +39,7 @@ export function Skeleton({ width, height, borderRadius = 8, style }: SkeletonPro
   return (
     <Animated.View
       style={[
-        { width, height, borderRadius, backgroundColor: bgColor, opacity },
+        { width: width as number, height: height as number, borderRadius, backgroundColor: bgColor, opacity } as any,
         style,
       ]}
     />

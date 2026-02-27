@@ -6,13 +6,19 @@ const app = require('./app');
 const config = require('./config');
 const { pool } = require('./config/database');
 const { startCleanupJob } = require('./jobs/deleteOldMessages');
+const { runDiscountCardMigration } = require('./migrations/discountCard');
+const { runUserDiscountCardsMigration } = require('./migrations/userDiscountCards');
+const { runPushTokenMigration } = require('./migrations/pushToken');
 
-// Test conexiune PostgreSQL
+// Test conexiune PostgreSQL + migrări
 pool.query('SELECT NOW()')
   .then(() => {
     console.log('✅ PostgreSQL conectat');
     console.log(`   DB: ${config.db.database} @ ${config.db.host}:${config.db.port}`);
+    return runDiscountCardMigration();
   })
+  .then(() => runUserDiscountCardsMigration())
+  .then(() => runPushTokenMigration())
   .catch((err) => {
     console.error('❌ PostgreSQL:', err.message);
     if (err.code === 'ECONNREFUSED') {

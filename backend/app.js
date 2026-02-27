@@ -21,6 +21,18 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 
+// Preflight CORS: răspunde la TOATE OPTIONS cu PATCH permis (înainte de cors())
+app.use((req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Admin-Key');
+    res.setHeader('Access-Control-Max-Age', '86400');
+    return res.sendStatus(204);
+  }
+  next();
+});
+
 app.use(cors(config.cors));
 app.use(express.json());
 
@@ -38,6 +50,9 @@ app.use('/uploads', express.static(uploadsDir));
 const adminPath = path.join(__dirname, 'public', 'admin');
 app.use('/admin', express.static(adminPath));
 app.get('/admin', (req, res) => {
+  res.sendFile(path.join(adminPath, 'index.html'));
+});
+app.get(/^\/admin\/.+/, (req, res) => {
   res.sendFile(path.join(adminPath, 'index.html'));
 });
 

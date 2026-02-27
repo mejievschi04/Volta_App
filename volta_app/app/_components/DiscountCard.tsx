@@ -175,8 +175,8 @@ const DiscountCard: React.FC<DiscountCardProps> = ({ name, logo, discountValue =
 
   const isSecondary = variant === 'secondary';
   const gradientColorsFront = theme === 'dark'
-    ? (isSecondary ? ['#2a2a2a', '#3a3a3a', '#1a1a1a'] : ['#1a1a1a', '#2a2a00', '#0d0d0d'])
-    : (isSecondary ? ['#f5f5f5', '#e8e8e8', '#fafafa'] : ['#fffef5', '#FFEE00', '#fff9cc']);
+    ? (isSecondary ? ['#2a2a2a', '#3a3a3a', '#1a1a1a'] as const : ['#1a1a1a', '#2a2a00', '#0d0d0d'] as const)
+    : (isSecondary ? ['#f5f5f5', '#e8e8e8', '#fafafa'] as const : ['#fffef5', '#FFEE00', '#fff9cc'] as const);
   const badgeBg = theme === 'dark'
     ? (isSecondary ? '#888' : '#FFEE00')
     : (isSecondary ? '#555' : '#000');

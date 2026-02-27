@@ -8,8 +8,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Screen from './_components/Screen';
 import { getColors, typography } from './_components/theme';
 import { ThemeContext } from './_context/ThemeContext';
-
-const { width, height } = Dimensions.get('window');
+import { useResponsive, responsiveSize } from './_hooks/useResponsive';
+import { useBottomMenuInset } from './_hooks/useBottomMenuInset';
 
 const voltaLogo = require('../assets/icons/Volta Logo 2@300x 1.png');
 
@@ -29,6 +29,8 @@ export default function Harta() {
   const colors = getColors(theme);
   const isDark = theme === 'dark';
   const insets = useSafeAreaInsets();
+  const { width, height, scale, isSmallScreen } = useResponsive();
+  const bottomInsetForMenu = useBottomMenuInset();
   const [location, setLocation] = useState<any>(null);
   const [nearest, setNearest] = useState<any>(null);
   const [distances, setDistances] = useState<Record<number, number>>({});
@@ -36,14 +38,14 @@ export default function Harta() {
   const [showInfoPanel, setShowInfoPanel] = useState(false);
   const mapRef = useRef<MapView>(null);
   const slideAnim = useRef(new Animated.Value(0)).current;
-  
-  // Înălțime meniu jos (app) – aliniat cu BottomMenu: paddingTop + înălțime item + paddingBottom
-  const bottomMenuHeight = 14 + 65 + Math.max(insets.bottom, 8);
-  // Meniul cu magazine lipit de meniu: coborât suficient ca să nu rămână niciun gol vizual
-  const storesMenuBottom = Math.max(0, bottomMenuHeight - 24);
-  // Înălțime rând magazine – butoanele harta cu câțiva px mai sus de el
-  const storesStripHeight = 12 + 56 + 12;
-  const mapButtonsBottom = storesMenuBottom + storesStripHeight + 18;
+
+  const responsiveLayout = useMemo(() => {
+    const storesStripHeight = responsiveSize(12, scale) + responsiveSize(56, scale) + responsiveSize(12, scale);
+    const storeButtonWidth = (width - responsiveSize(48, scale)) / 2.2;
+    const mapButtonsBottom = bottomInsetForMenu + storesStripHeight + responsiveSize(18, scale);
+    const storesMenuBottom = Math.max(0, bottomInsetForMenu - responsiveSize(24, scale));
+    return { storesStripHeight, storeButtonWidth, mapButtonsBottom, storesMenuBottom };
+  }, [width, scale, bottomInsetForMenu]);
 
   const dynamicStyles = StyleSheet.create({
     container: {
@@ -351,6 +353,7 @@ export default function Harta() {
           showsBuildings={false}
           zoomControlEnabled={false}
           toolbarEnabled={false}
+          showsCompass={false}
           initialRegion={{
             latitude: location.latitude,
             longitude: location.longitude,
@@ -368,7 +371,9 @@ export default function Harta() {
               anchor={{ x: 0.5, y: 0.5 }}
             >
               <View style={styles.markerContainer}>
-                <Image source={voltaLogo} style={styles.markerLogo} resizeMode="contain" />
+                <View style={[styles.markerLogoBack, { backgroundColor: isDark ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.75)' }]}>
+                  <Image source={voltaLogo} style={styles.markerLogo} resizeMode="contain" />
+                </View>
               </View>
             </Marker>
           ))}
@@ -380,7 +385,7 @@ export default function Harta() {
             { 
               backgroundColor: colors.primaryButton, 
               borderColor: colors.primaryButton,
-              bottom: mapButtonsBottom,
+              bottom: responsiveLayout.mapButtonsBottom,
             }
           ]} 
           onPress={centerToUser}
@@ -400,7 +405,7 @@ export default function Harta() {
                 { 
                   backgroundColor: colors.primaryButton, 
                   borderColor: colors.primaryButton,
-                  bottom: mapButtonsBottom,
+                  bottom: responsiveLayout.mapButtonsBottom,
                 }
               ]}
               onPress={() => openNavigation(selectedStore)}
@@ -414,7 +419,7 @@ export default function Harta() {
       </View>
 
       {/* Butoane magazine (fixat exact deasupra meniului principal) */}
-      <View style={[styles.bottomArea, { bottom: storesMenuBottom, backgroundColor: isDark ? '#000' : '#FFFFFF' }]}>
+      <View style={[styles.bottomArea, { bottom: responsiveLayout.storesMenuBottom, backgroundColor: isDark ? '#333' : '#FFFFFF' }]}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -425,9 +430,10 @@ export default function Harta() {
               key={store.id}
               style={[
                 styles.storeButton,
+                { width: responsiveLayout.storeButtonWidth },
                 {
                   borderColor: isDark ? '#333' : '#333',
-                  backgroundColor: isDark ? '#111' : '#FFFFFF',
+                  backgroundColor: isDark ? '#333' : '#FFFFFF',
                 },
                 selectedStoreId === store.id && { backgroundColor: colors.primaryButton, borderColor: colors.primaryButton },
               ]}
@@ -446,7 +452,7 @@ export default function Harta() {
                 </View>
                 <View style={[
                   styles.distancePill,
-                  { backgroundColor: isDark ? '#222' : '#F5F5F5' },
+                  { backgroundColor: isDark ? '#333' : '#F5F5F5' },
                   selectedStoreId === store.id && styles.distancePillActive
                 ]}>
                   <Text style={[
@@ -495,11 +501,11 @@ function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
 
 // Stil hartă pentru dark theme
 const mapStyleDark = [
-  { elementType: 'geometry', stylers: [{ color: '#333' }] },
+  { elementType: 'geometry', stylers: [{ color: '#3d4550' }] },
   { elementType: 'labels.text.fill', stylers: [{ color: '#ffee00' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#1a3646' }] },
-  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#304a7d' }] },
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0e1626' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#2d3338' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#4a5460' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#343d48' }] },
   // Ascunde POI-urile și punctele ce nu țin de rețea
   { featureType: 'poi', stylers: [{ visibility: 'off' }] },
   { featureType: 'poi.business', stylers: [{ visibility: 'off' }] },
@@ -514,13 +520,13 @@ const mapStyleDark = [
 
 // Stil hartă pentru light theme (alb)
 const mapStyleLight = [
-  { elementType: 'geometry', stylers: [{ color: '#FFFFFF' }] },
+  { elementType: 'geometry', stylers: [{ color: '#F5F6F8' }] },
   { elementType: 'labels.text.fill', stylers: [{ color: '#333333' }] },
   { elementType: 'labels.text.stroke', stylers: [{ color: '#FFFFFF' }] },
-  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#E0E0E0' }] },
-  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#CCCCCC' }] },
-  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#E3F2FD' }] },
-  { featureType: 'landscape', elementType: 'geometry', stylers: [{ color: '#F5F5F5' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#E8EAED' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#DADCE0' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#D6E8F5' }] },
+  { featureType: 'landscape', elementType: 'geometry', stylers: [{ color: '#F0F2F5' }] },
   // Ascunde POI-urile și punctele ce nu țin de rețea
   { featureType: 'poi', stylers: [{ visibility: 'off' }] },
   { featureType: 'poi.business', stylers: [{ visibility: 'off' }] },
@@ -611,7 +617,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 8,
     marginRight: 8,
-    width: (width - 48) / 2.2, // Pentru a încăpea ~2,2 carduri complet și începutul celui de-al 3-lea
+    // width set inline from responsiveLayout.storeButtonWidth
   },
   storeButtonContent: {
     flexDirection: 'column',
@@ -674,6 +680,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  markerLogoBack: {
+    padding: 3,
+    borderRadius: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 238, 0, 0.4)',
+  },
   markerTextAbove: {
     color: '#000',
     fontWeight: '700',
@@ -687,13 +701,13 @@ const styles = StyleSheet.create({
     maxWidth: 150,
   },
   markerLogo: {
-    width: 30,
-    height: 30,
+    width: 20,
+    height: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.5,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.35,
+    shadowRadius: 2,
+    elevation: 3,
   },
   btnRoute: {
     position: 'absolute',
