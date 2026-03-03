@@ -112,9 +112,9 @@ EXPO_PUBLIC_API_URL=http://localhost:3000/api
 ```env
 EXPO_PUBLIC_API_URL=http://192.168.1.100:3000/api
 ```
-
 ### Production (server remote)
 ```env
 EXPO_PUBLIC_API_URL=https://api.volta.app/api
 ```
+
 

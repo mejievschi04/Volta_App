@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import * as Notifications from 'expo-notifications';
+import { Notifications } from '../lib/notifications';
 import { Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
@@ -69,6 +69,12 @@ export const useNotifications = (userId: string | number | null, enabled: boolea
 };
 
 export async function registerForPushNotificationsAsync(): Promise<string | null> {
+  // Push notifications (remote) nu sunt suportate în Expo Go din SDK 53+ – folosește development build pentru push.
+  if (Constants.appOwnership === 'expo') {
+    if (__DEV__) console.warn('[Notifications] Expo Go: push-urile remote nu sunt disponibile. Folosește un development build.');
+    return null;
+  }
+
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
       name: 'default',

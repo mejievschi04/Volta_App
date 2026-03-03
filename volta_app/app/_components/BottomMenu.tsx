@@ -26,7 +26,7 @@ import { getColors } from './theme';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const isSmallScreen = SCREEN_WIDTH < 375;
 const isMediumScreen = SCREEN_WIDTH >= 375 && SCREEN_WIDTH < 768;
-
+const BOTTOM_MENU_HEIGHT_ESTIMATE = 78; // înălțimea barei (paddingTop + rând + paddingBottom), fără insets
 export default function BottomMenu() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -34,23 +34,20 @@ export default function BottomMenu() {
   const { user, selectedCardPercent } = useContext(UserContext);
   const colors = getColors(theme);
 
-  // Cardul selectat pentru barcode (din user, ca pe Profil)
+  // Cardul selectat pentru barcode (din user) – fără carduri fictive
   const activeCards = (user?.discount_cards ?? []).filter(
     (c) => !c.expires_at || new Date(c.expires_at) > new Date()
   );
   const selectedCardId = user?.selected_discount_card_id;
   const selectedCard = activeCards.find((c) => c.id === selectedCardId) ?? activeCards[0];
+  const hasRealCard = activeCards.length > 0 && selectedCard != null;
   const displayPercent = selectedCard?.discount_value ?? selectedCardPercent ?? 10;
-  const displayCardCode =
-    user?.id != null && selectedCard?.id != null
-      ? `VOLTA-${user.id}-${selectedCard.id}`.slice(0, 20)
-      : `VOLTA-${user?.id ? String(user.id).slice(0, 4).toUpperCase() : "0000"}`;
-  const displayBarcodeValue =
-    user?.id != null && selectedCard?.id != null
-      ? `${String(user.id).padStart(6, "0")}${String(selectedCard.id).padStart(6, "0")}`.slice(0, 12)
-      : user?.id
-        ? String(user.id).slice(0, 12)
-        : "458712345678";
+  const displayCardCode = hasRealCard && user?.id != null
+    ? `VOLTA-${user.id}-${selectedCard!.id}`.slice(0, 20)
+    : '';
+  const displayBarcodeValue = hasRealCard && user?.id != null
+    ? `${String(user.id).padStart(6, "0")}${String(selectedCard!.id).padStart(6, "0")}`.slice(0, 12)
+    : '';
 
   const insetsBottom = Math.max(8, insets.bottom);
   const pathname = usePathname();
@@ -88,16 +85,22 @@ export default function BottomMenu() {
   // Active indicator position animation
   const activeIndicatorPosition = useRef(new Animated.Value(0)).current;
   
-  // Menu items configuration (removed Promoții, will have central discount card button)
   const menuItems = [
     { id: 'acasa', label: 'Acasă', iconName: 'home', route: '/Home' },
-    { id: 'profile', label: 'Profil', iconName: 'account', route: '/Profile' },
-    { id: 'blog', label: 'Blog', iconName: 'newspaper-variant-outline', route: '/Blog' },
+    { id: 'catalog', label: 'Catalog', iconName: 'view-grid-outline', route: '/Catalog' },
     { id: 'harta', label: 'Hartă', iconName: 'map', route: '/Harta' },
+  ];
+
+  const moreMenuOptions = [
+    { id: 'profile', label: 'Profil', iconName: 'person-outline', route: '/Profile' },
+    { id: 'cos', label: 'Coș', iconName: 'cart-outline', route: '/Cos' },
+    { id: 'promotii', label: 'Promoții', iconName: 'pricetag-outline', route: '/Promotii' },
+    { id: 'blog', label: 'Blog', iconName: 'newspaper-outline', route: '/Blog' },
   ];
 
   // State for discount card modal
   const [showDiscountCard, setShowDiscountCard] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const modalOverlayAnim = useRef(new Animated.Value(0)).current;
   const modalContentScale = useRef(new Animated.Value(0.85)).current;
   const modalContentOpacity = useRef(new Animated.Value(0)).current;
@@ -173,12 +176,12 @@ export default function BottomMenu() {
     ]).start(() => setShowDiscountCard(false));
   };
 
-  // Find active item index and animate indicator
+  // Find active item index and animate indicator (only for Acasă, Catalog, Hartă)
   useEffect(() => {
-    const activeIndex = menuItems.findIndex(item => 
+    const activeIndex = menuItems.findIndex(item =>
       pathname && pathname.startsWith(item.route)
     );
-    
+
     if (activeIndex !== -1) {
       Animated.spring(activeIndicatorPosition, {
         toValue: activeIndex,
@@ -319,6 +322,7 @@ export default function BottomMenu() {
           <Animated.View
             style={{
               transform: [{ scale: iconScaleAnim }],
+              position: 'relative',
             }}
           >
             <MaterialCommunityIcons
@@ -349,22 +353,21 @@ export default function BottomMenu() {
   const isDark = theme === 'dark';
   const menuWidth = SCREEN_WIDTH;
   const menuPaddingH = isSmallScreen ? 6 : 10;
-  const totalVisualItems = 5;
+  const totalVisualItems = 5; // Acasă, Card, Catalog, Hartă, More
   const availableWidth = menuWidth - (menuPaddingH * 2);
   const visualItemWidth = availableWidth / totalVisualItems;
-  const indicatorWidth = visualItemWidth * 0.8; // 80% of item width to cover the element
+  const indicatorWidth = visualItemWidth * 0.8;
+  // Indicator only for first 3 items: positions 0 (Acasă), 1 (Catalog), 3 (Hartă) – skip 2 for central card
   const indicatorLeft = activeIndicatorPosition.interpolate({
-    inputRange: menuItems.map((_, index) => index),
-    outputRange: menuItems.map((_, index) => {
-      // Map index: 0->0, 1->1, 2->3, 3->4 (skip position 2 for central button)
-      const visualIndex = index < 2 ? index : index + 1;
-      // Center the indicator exactly on the item: menu padding + item start + (item width - indicator width) / 2
+    inputRange: [0, 1, 2],
+    outputRange: [0, 1, 2].map((index) => {
+      const visualIndex = index < 2 ? index : 3; // 0->0, 1->1, 2->3
       return menuPaddingH + visualIndex * visualItemWidth + (visualItemWidth - indicatorWidth) / 2;
     }),
   });
   const indicatorWidthAnimated = activeIndicatorPosition.interpolate({
-    inputRange: menuItems.map((_, index) => index),
-    outputRange: menuItems.map(() => indicatorWidth),
+    inputRange: [0, 1, 2],
+    outputRange: [indicatorWidth, indicatorWidth, indicatorWidth],
   });
 
   // Barcode mare pentru modalul card reducere (doar barcode pe fundal negru)
@@ -390,7 +393,74 @@ export default function BottomMenu() {
   }
 
   return (
-    <View style={styles.container} pointerEvents="box-none">
+    <>
+        {/* Meniu Mai mult – overlay sub bara de meniu (z 999), bară z 1000 */}
+        {showMoreMenu && (
+          <View style={[StyleSheet.absoluteFillObject, { zIndex: 999 }]} pointerEvents="box-none">
+            {/* Backdrop – doar zona de deasupra barei; tap aici închide meniul */}
+            <TouchableOpacity
+              style={[
+                moreMenuStyles.overlay,
+                {
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: BOTTOM_MENU_HEIGHT_ESTIMATE + Math.max(insetsBottom, 8),
+                },
+              ]}
+              activeOpacity={1}
+              onPress={() => setShowMoreMenu(false)}
+            />
+            {/* Panoul cu opțiuni – separat ca tap pe opțiuni să nu închidă din overlay */}
+            <View
+              style={[
+                moreMenuStyles.container,
+                {
+                  flex: 1,
+                  justifyContent: 'flex-end',
+                  paddingBottom: BOTTOM_MENU_HEIGHT_ESTIMATE + Math.max(insetsBottom, 8) - 12,
+                  paddingRight: 0,
+                  paddingLeft: 16,
+                  alignItems: 'flex-end',
+                },
+              ]}
+              pointerEvents="box-none"
+            >
+              <View
+                style={[
+                  moreMenuStyles.panel,
+                  {
+                    backgroundColor: colors.navBarBg,
+                    borderColor: colors.navBarBorder,
+                  },
+                ]}
+                onStartShouldSetResponder={() => true}
+              >
+                {moreMenuOptions.map((opt, i) => (
+                  <TouchableOpacity
+                    key={opt.id}
+                    style={[
+                      moreMenuStyles.row,
+                      i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.navBarBorder },
+                    ]}
+                    onPress={() => {
+                      setShowMoreMenu(false);
+                      router.push(opt.route as any);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[moreMenuStyles.label, { color: colors.text }]}>{opt.label}</Text>
+                    <View style={[moreMenuStyles.iconCircle, { backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)' }]}>
+                      <Ionicons name={opt.iconName as any} size={20} color={colors.text} />
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </View>
+        )}
+      <View style={styles.container} pointerEvents="box-none">
       <View style={[styles.menu, { 
         paddingBottom: Math.max(insetsBottom, 8),
         backgroundColor: colors.navBarBg,
@@ -409,8 +479,8 @@ export default function BottomMenu() {
           ]}
         />
         
-        {/* Stânga: Acasă, Profil */}
-        {menuItems.slice(0, 2).map((item, index) => (
+        {/* Stânga: Acasă */}
+        {menuItems.slice(0, 1).map((item, index) => (
           <Item
             key={item.id}
             id={item.id}
@@ -421,17 +491,36 @@ export default function BottomMenu() {
             route={item.route}
           />
         ))}
-        
-        {/* Buton central Card – proeminent, galben Volta */}
+
+        {/* Catalog */}
+        {menuItems.slice(1, 2).map((item, index) => (
+          <Item
+            key={item.id}
+            id={item.id}
+            label={item.label}
+            iconName={item.iconName}
+            onPress={() => router.push(item.route as any)}
+            index={index + 1}
+            route={item.route}
+          />
+        ))}
+
+        {/* Buton central Card – pe mijloc, galben Volta */}
         <View style={styles.centralButtonContainer}>
           <View style={styles.centralButtonGlow} />
           <TouchableOpacity
             style={[styles.centralButton, { borderColor: colors.navBarBg }]}
-            onPress={() => setShowDiscountCard(true)}
+            onPress={() => {
+              if (hasRealCard) {
+                setShowDiscountCard(true);
+              } else {
+                router.push('/Profile');
+              }
+            }}
             activeOpacity={0.85}
             accessibilityLabel="Card reducere"
             accessibilityRole="button"
-            accessibilityHint="Deschide cardul de reducere"
+            accessibilityHint={hasRealCard ? "Deschide cardul de reducere" : "Mergi la Profil pentru a adăuga un card"}
           >
             <LinearGradient
               colors={['#FFEE00', '#FFE844', '#FFD700', '#FFC700']}
@@ -444,9 +533,9 @@ export default function BottomMenu() {
             </LinearGradient>
           </TouchableOpacity>
         </View>
-        
-        {/* Dreapta: Blog, Hartă */}
-        {menuItems.slice(2).map((item, index) => (
+
+        {/* Hartă */}
+        {menuItems.slice(2, 3).map((item, index) => (
           <Item
             key={item.id}
             id={item.id}
@@ -457,6 +546,26 @@ export default function BottomMenu() {
             route={item.route}
           />
         ))}
+
+        {/* Al 4-lea element: 3 puncte – deschide meniul flotant */}
+        <Pressable
+          onPress={() => setShowMoreMenu((prev) => !prev)}
+          style={styles.item}
+          accessibilityLabel="Mai mult"
+          accessibilityRole="button"
+          accessibilityHint="Deschide meniul cu Profil, Coș, Promoții, Blog"
+        >
+          <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons
+              name="ellipsis-horizontal"
+              size={isSmallScreen ? 20 : isMediumScreen ? 22 : 24}
+              color={colors.navBarInactive}
+            />
+            <Text style={[styles.label, { color: colors.navBarInactive, fontWeight: '400', opacity: 0.9 }]}>
+              Mai mult
+            </Text>
+          </View>
+        </Pressable>
         
         {/* Discount Card Modal – animație deschidere/închidere */}
         <Modal
@@ -498,26 +607,52 @@ export default function BottomMenu() {
                 <Ionicons name="close" size={28} color={colors.text} />
               </TouchableOpacity>
               <View style={styles.barcodeOnlyContent}>
-                <Text style={[styles.barcodeCodeLabel, { color: colors.textMuted }]}>
-                  Reducere {displayPercent}%
-                </Text>
-                <Text style={[styles.barcodeCode, { color: colors.text }]}>
-                  {displayCardCode}
-                </Text>
-                <Text style={[styles.barcodeCodeLabel, { color: colors.textMuted, marginBottom: 8 }]}>
-                  {displayBarcodeValue}
-                </Text>
-                <View style={styles.barcodeOnlyWrap}>
-                  {renderBarcode(100, 2.5)}
-                </View>
-                <Text style={[styles.barcodeOnlyHint, { color: colors.textMuted }]}>Apasă în afară pentru închidere</Text>
+                {hasRealCard && displayCardCode && displayBarcodeValue ? (
+                  <>
+                    <Text style={[styles.barcodeCodeLabel, { color: colors.textMuted }]}>
+                      Reducere {displayPercent}%
+                    </Text>
+                    <Text style={[styles.barcodeCode, { color: colors.text }]}>
+                      {displayCardCode}
+                    </Text>
+                    <Text style={[styles.barcodeCodeLabel, { color: colors.textMuted, marginBottom: 8 }]}>
+                      {displayBarcodeValue}
+                    </Text>
+                    <View style={styles.barcodeOnlyWrap}>
+                      {renderBarcode(100, 2.5)}
+                    </View>
+                    <Text style={[styles.barcodeOnlyHint, { color: colors.textMuted }]}>Apasă în afară pentru închidere</Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={[styles.barcodeCodeLabel, { color: colors.textMuted }]}>Nu ai card de reducere</Text>
+                    <Text style={[styles.barcodeOnlyHint, { color: colors.textMuted, marginTop: 8 }]}>Adaugă un card din Profil</Text>
+                    <TouchableOpacity
+                      style={{
+                        marginTop: 20,
+                        backgroundColor: '#FFEE00',
+                        paddingVertical: 14,
+                        paddingHorizontal: 24,
+                        borderRadius: 14,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                      onPress={() => { closeDiscountModal(); router.push('/Profile'); }}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={{ color: '#000', fontWeight: '700', fontSize: 16 }}>Mergi la Profil</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
               </View>
             </Animated.View>
             </View>
           </View>
         </Modal>
+
       </View>
     </View>
+    </>
   );
 }
 
@@ -725,6 +860,41 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     letterSpacing: 0.3,
+  },
+});
+
+const moreMenuStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  container: {
+    paddingRight: 0,
+  },
+  panel: {
+    minWidth: 180,
+    maxWidth: 280,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  label: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  iconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 

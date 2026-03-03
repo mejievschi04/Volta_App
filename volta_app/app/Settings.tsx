@@ -16,7 +16,6 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { UserContext } from './_context/UserContext';
 import { ThemeContext } from './_context/ThemeContext';
-import { NotificationsPrefContext } from './_context/NotificationsPrefContext';
 import { getColors } from './_components/theme';
 import Screen from './_components/Screen';
 import { useBottomMenuInset } from './_hooks/useBottomMenuInset';
@@ -26,7 +25,6 @@ export default function Settings() {
   const router = useRouter();
   const { user } = useContext(UserContext);
   const { theme, toggleTheme } = useContext(ThemeContext);
-  const { notificationsEnabled, setNotificationsEnabled } = useContext(NotificationsPrefContext);
   const isDark = theme === 'dark';
   const colors = getColors(theme);
   const bottomInsetForMenu = useBottomMenuInset();
@@ -112,28 +110,6 @@ export default function Settings() {
                   onValueChange={toggleTheme}
                   trackColor={{ false: colors.border, true: colors.primaryButton }}
                   thumbColor={isDark ? '#000' : '#fff'}
-                  ios_backgroundColor={colors.border}
-                />
-              </View>
-            </View>
-
-            {/* Notificări push */}
-            <View style={[responsiveStyles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-              <Text style={[responsiveStyles.sectionTitle, { color: colors.text }]}>Notificări</Text>
-              <View style={responsiveStyles.switchRow}>
-                <View style={responsiveStyles.switchLabelContainer}>
-                  <View style={[responsiveStyles.iconContainer, { backgroundColor: isDark ? '#000' : '#333' }]}>
-                    <Ionicons name="notifications-outline" size={22} color={colors.primaryButton} />
-                  </View>
-                  <Text style={[responsiveStyles.optionText, { color: colors.text }]}>
-                    Notificări push
-                  </Text>
-                </View>
-                <Switch
-                  value={notificationsEnabled}
-                  onValueChange={setNotificationsEnabled}
-                  trackColor={{ false: colors.border, true: colors.primaryButton }}
-                  thumbColor={notificationsEnabled ? '#000' : '#fff'}
                   ios_backgroundColor={colors.border}
                 />
               </View>

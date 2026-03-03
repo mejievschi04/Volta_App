@@ -1,15 +1,15 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useContext } from 'react';
 import { View, Text, StyleSheet, Animated, Image, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { UserContext } from './_context/UserContext';
 import { getColors } from './_components/theme';
 
 const { width } = Dimensions.get('window');
 
 export default function Loading() {
   const router = useRouter();
-  // Mereu light: ecranul de start / loading nu respectă preferința de temă
+  const { user, token, isLoading } = useContext(UserContext);
   const colors = getColors('light');
   const gradientColors = ['#FFFFFF', '#FAFAFA'] as const;
   
@@ -73,31 +73,21 @@ export default function Loading() {
       ]).start(() => animateDots());
     };
     animateDots();
+  }, []);
 
-    // Verifică dacă există user salvat pentru auto-login
-    const checkUserSession = async () => {
-      try {
-        const userData = await AsyncStorage.getItem("user");
-        if (userData) {
-          const user = JSON.parse(userData);
-          // Verifică dacă user-ul are date valide
-          if (user && user.id) {
-            // Navighează direct la Home dacă există sesiune
-            setTimeout(() => router.replace('/Home'), 1500);
-            return;
-          }
-        }
-        // Dacă nu există user, navighează la Login
-        setTimeout(() => router.replace('/Login'), 2500);
-      } catch (error) {
-        console.error('[Loading] Eroare la verificarea sesiunii:', error);
-        // În caz de eroare, navighează la Login
-        setTimeout(() => router.replace('/Login'), 2500);
-      }
-    };
+  // Navigare după ce UserContext a terminat de încărcat user + token din AsyncStorage
+  useEffect(() => {
+    if (isLoading) return;
 
-    checkUserSession();
-  }, [router]);
+    const hasSession = user != null && user.id != null && token != null && token.length > 0;
+    const delay = hasSession ? 1500 : 2500;
+    const target = hasSession ? '/Home' : '/Login';
+
+    const t = setTimeout(() => {
+      router.replace(target);
+    }, delay);
+    return () => clearTimeout(t);
+  }, [isLoading, user, token, router]);
 
   const dot1Opacity = dot1Anim.interpolate({
     inputRange: [0, 1],

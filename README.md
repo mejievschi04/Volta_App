@@ -1,83 +1,52 @@
 # Volta Mobile App
 
-Aplicație mobilă (Expo / React Native) + backend Node.js + panou admin pentru gestionarea promoțiilor, utilizatori, notificări, blog și mesaje.
+Aplicație mobilă (Expo / React Native) care folosește API-ul Volta (api.volta.md). Opțional: panou admin în folderul `admin/` (build → `admin/dist`).
 
 ## Structura proiectului
 
 ```
 VoltaMobileApp/
-├── backend/          # API Node.js + Express + PostgreSQL
-│   ├── config/       # Env, DB, Multer, CORS
-│   ├── middleware/   # Auth (JWT), errorHandler, notFound, requestLogger
-│   ├── routes/       # auth, users, notifications, promotions, blog, messages, upload, health
-│   ├── controllers/
-│   ├── utils/
-│   ├── jobs/         # Cleanup mesaje vechi
-│   ├── public/admin/ # Panou admin (static)
-│   ├── uploads/
-│   ├── server.js
-│   ├── .env.example
-│   └── STRUCTURA.md
 ├── volta_app/        # Aplicația mobilă (Expo)
 │   ├── app/          # Ecrane (Expo Router), context, components
 │   ├── lib/          # apiClient
 │   ├── hooks/
 │   ├── types/
 │   └── .env.example
+├── admin/            # Panou admin (Vite + React), build → admin/dist
 ├── ANALIZA_APLICATIE.md
+├── apisite.md        # Rute API site (main/*, shop/*)
+├── api_endpoints_request_fields.txt
 └── README.md
 ```
 
 ## Cerințe
 
 - **Node.js** 18+
-- **PostgreSQL** (pentru backend)
 - **Expo CLI** (pentru app: `npx expo start`)
 
-## Pornire rapidă
-
-### 1. Backend
-
-```bash
-cd backend
-cp .env.example .env
-# Completează .env: DB_HOST, DB_USER, DB_PASSWORD, DB_NAME, JWT_SECRET (obligatoriu în producție)
-npm install
-npm run dev
-```
-
-- API: http://localhost:3000/api  
-- Admin: http://localhost:3000/admin  
-- Uploads: http://localhost:3000/uploads  
-
-Baza de date trebuie creată și migrată (vezi `backend/README_POSTGRES.md` și `backend/database_postgres.sql`).
-
-### 2. Aplicația mobilă
+## Pornire rapidă – Aplicația mobilă
 
 ```bash
 cd volta_app
 cp .env.example .env
-# Setează EXPO_PUBLIC_API_URL=http://IP_TAU:3000/api (pentru device/emulator Android)
+# Setează EXPO_PUBLIC_API_URL / EXPO_PUBLIC_SITE_API_URL dacă e cazul (implicit: api.volta.md)
 npm install
 npx expo start
 ```
 
-Pe **Android** (emulator sau device) este necesar `EXPO_PUBLIC_API_URL` cu IP-ul mașinii (ex: `http://192.168.1.100:3000/api`). Pe iOS simulator poate fi folosit `http://localhost:3000/api` dacă nu e setat.
+App-ul folosește API-ul Volta (auth, catalog, promoții, blog etc.). Vezi `volta_app/docs/ENDPOINTURI_BACKEND_VOLTA.md` pentru endpointuri.
 
-### 3. Admin
+## Admin (opțional)
 
-Deschide în browser: http://localhost:3000/admin (după ce backend-ul rulează). În header poți seta URL-ul API dacă admin-ul rulează pe alt domeniu.
+```bash
+cd admin
+npm install
+npm run build
+```
 
-## Securitate
+Build-ul se generează în `admin/dist`. Poți servi acest folder cu orice server static sau îl poți deploya unde ai nevoie.
 
-- **JWT** pentru autentificare; rutele protejate: `GET/PUT /api/users/:id`, toate `/api/messages/*`.
-- **Parole** hash-uite cu bcrypt; parola nu este returnată niciodată în răspuns.
-- **CORS**: în producție setează în backend `.env`:  
-  `CORS_ORIGIN=https://app.volta.md,https://admin.volta.md`
-- **Rate limit** pe `/api/auth`: max 20 cereri / 15 minute.
-- **Helmet** activat pe backend pentru headere de securitate.
+## Documentație
 
-## Documentație suplimentară
-
-- **Backend:** `backend/STRUCTURA.md` – structură, rute, securitate.
-- **Analiză și îmbunătățiri:** `ANALIZA_APLICATIE.md`.
+- **Endpointuri API:** `volta_app/docs/ENDPOINTURI_BACKEND_VOLTA.md`
+- **Analiză:** `ANALIZA_APLICATIE.md`

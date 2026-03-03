@@ -65,12 +65,12 @@ export default function Blog() {
   const fetchBlogPosts = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await apiClient.getBlogPosts();
+      const { data, error } = await apiClient.getMainBlogPosts();
 
       if (error) {
         console.error("Eroare la citirea blogurilor:", error);
       } else if (data) {
-        const raw = (Array.isArray(data) ? data : []) as Array<{ content?: string; created_at?: string; [key: string]: unknown }>;
+        const raw = (Array.isArray(data) ? data : []) as Array<{ content?: string; created_at?: string; slug?: string; [key: string]: unknown }>;
         const processed = raw.map((item) => ({
           ...item,
           excerpt:
@@ -133,7 +133,7 @@ export default function Blog() {
                     onPress={() =>
                       router.push({
                         pathname: "./blog/[id]",
-                        params: { id: p.id },
+                        params: { id: (p as { slug?: string }).slug ?? String(p.id) },
                       })
                     }
                     android_ripple={{ color: 'rgba(255,238,0,0.1)' }}

@@ -6,6 +6,8 @@ export interface DiscountCardItem {
   discount_value: 5 | 10;
   expires_at: string | null;
   created_at?: string;
+  /** Cod barcode de la backend (opțional) */
+  barcode?: string;
 }
 
 export interface User {

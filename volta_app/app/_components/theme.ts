@@ -34,6 +34,12 @@ export const colors = {
 // Funcție helper pentru a obține culorile pentru tema curentă
 export const getColors = (theme: Theme) => colors[theme];
 
+/** Afișare monedă în UI: MDL → lei, restul rămâne neschimbat. */
+export function formatCurrencyDisplay(currency: string): string {
+  if (!currency || typeof currency !== 'string') return 'lei';
+  return currency.trim().toUpperCase() === 'MDL' ? 'lei' : currency;
+}
+
 export const spacing = {
   xs: 6,
   sm: 10,
@@ -84,4 +90,5 @@ export const textVariants = {
 
 export type TextVariant = keyof typeof textVariants;
 
-
+// Placeholder pentru Expo Router (fișierul nu e o rută)
+export default function _(): null { return null; }

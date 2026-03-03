@@ -44,20 +44,17 @@ export default function BlogDetails() {
   const fetchPost = async () => {
     setLoading(true);
     try {
-      const postId = typeof id === 'string' ? parseInt(id, 10) : id;
-      if (isNaN(postId)) {
-        console.error("ID invalid:", id);
-        setLoading(false);
-        return;
-      }
-      
-      const { data, error } = await apiClient.getBlogPost(postId);
+      const idOrSlug = typeof id === 'string' ? id : String(id);
+      const { data, error } = await apiClient.getMainBlogPostBySlug(idOrSlug);
 
       if (error) {
-        console.error("Eroare la citirea articolului:", error);
-        setPost(null);
+        const fallback = await apiClient.getBlogPost(isNaN(Number(idOrSlug)) ? 0 : Number(idOrSlug));
+        if (fallback.data) setPost(fallback.data as BlogPost);
+        else setPost(null);
       } else if (data) {
         setPost(data as BlogPost);
+      } else {
+        setPost(null);
       }
     } catch (err) {
       console.error("Eroare:", err);

@@ -29,3 +29,5 @@ export function useBottomMenuInset(): number {
 
   return useMemo(() => insets.bottom + getBottomMenuHeight(width), [insets.bottom, width]);
 }
+
+export default function NoRoute() { return null; }

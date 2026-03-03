@@ -16,7 +16,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-import * as ExpoNotifications from 'expo-notifications';
+import ExpoNotifications from '../lib/notifications';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { ThemeContext } from './_context/ThemeContext';
 import { useNotificationsQuery } from '../hooks/useNotificationsApi';

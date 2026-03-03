@@ -67,3 +67,5 @@ export const responsiveHeight = (percentage: number): number => {
   return (height * percentage) / 100;
 };
 
+export default function NoRoute() { return null; }
+

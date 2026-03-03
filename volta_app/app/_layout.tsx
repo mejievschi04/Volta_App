@@ -5,9 +5,10 @@ import { View, StyleSheet, StatusBar, Platform, AppState } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import * as NavigationBar from 'expo-navigation-bar';
 import BottomMenu from './_components/BottomMenu';
+import FloatingCartButton from './_components/FloatingCartButton';
 import { UserProvider, UserContext } from './_context/UserContext';
 import { ThemeProvider, ThemeContext } from './_context/ThemeContext';
-import { NotificationsPrefProvider, NotificationsPrefContext } from './_context/NotificationsPrefContext';
+import { CartProvider } from './_context/CartContext';
 import { getColors } from './_components/theme';
 import { setOnUnauthorized } from '../lib/apiClient';
 import { useNotifications } from '../hooks/useNotifications';
@@ -24,7 +25,6 @@ const queryClient = new QueryClient({
 function ThemedLayout() {
   const { theme } = useContext(ThemeContext);
   const { setUser, setToken, user } = useContext(UserContext);
-  const { notificationsEnabled } = useContext(NotificationsPrefContext);
   const router = useRouter();
   const pathname = usePathname();
   const appState = useRef(AppState.currentState);
@@ -33,7 +33,7 @@ function ThemedLayout() {
   const layoutTheme = pathname === '/' || pathname === '/Loading' || pathname === '/Login' ? 'light' : theme;
   const colors = getColors(layoutTheme);
 
-  useNotifications(user?.id ?? null, notificationsEnabled);
+  useNotifications(user?.id ?? null, true);
 
   // La 401 (token invalid/expirat): logout și redirect la Login
   useEffect(() => {
@@ -89,6 +89,7 @@ function ThemedLayout() {
       <StatusBar hidden />
       <Slot />
       {shouldShowMenu && <BottomMenu />}
+      {shouldShowMenu && <FloatingCartButton />}
     </View>
   );
 }
@@ -99,9 +100,9 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <ThemeProvider>
           <UserProvider>
-            <NotificationsPrefProvider>
+            <CartProvider>
               <ThemedLayout />
-            </NotificationsPrefProvider>
+            </CartProvider>
           </UserProvider>
         </ThemeProvider>
       </SafeAreaProvider>

@@ -8,16 +8,21 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { apiClient } from "../lib/apiClient";
+import { getDiscountCardStatus, type DiscountCardStatusResponse } from "../lib/discountCardApi";
 import { UserContext } from "./_context/UserContext";
 import { ThemeContext } from "./_context/ThemeContext";
 import DiscountCard from "./_components/DiscountCard";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter, useFocusEffect } from "expo-router";
-import * as Notifications from 'expo-notifications';
+import Notifications from "../lib/notifications";
 import Screen from "./_components/Screen";
 import { getColors, spacing } from "./_components/theme";
 import { useResponsive, responsiveSize, responsiveWidth, responsiveHeight } from "./_hooks/useResponsive";
@@ -46,6 +51,12 @@ const ProfileScreen = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [totalNotifications, setTotalNotifications] = useState(0);
   const lastNotificationIdsRef = useRef<Set<string>>(new Set());
+
+  const [showAddCardModal, setShowAddCardModal] = useState(false);
+  const [addCardCode, setAddCardCode] = useState("");
+  const [addCardLoading, setAddCardLoading] = useState(false);
+  const [addCardError, setAddCardError] = useState<string | null>(null);
+  const [addCardResult, setAddCardResult] = useState<DiscountCardStatusResponse | null>(null);
   
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;
@@ -68,43 +79,42 @@ const ProfileScreen = () => {
 
   const fetchUserData = useCallback(async () => {
     try {
-      console.log('[Profile] Fetching user data, user:', user);
-      if (!user?.id) {
-        console.warn('[Profile] User ID not found, using user data from context');
-        // Dacă nu avem ID, folosim datele din context
-        if (user) {
-          setUserData(user);
-        }
+      if (!user?.id && user !== null) {
+        if (user) setUserData(user);
         setLoading(false);
         return;
       }
-      console.log('[Profile] Requesting user data for ID:', user.id);
-      const { data, error } = await apiClient.getUser(user.id);
-      
-      console.log('[Profile] User data response:', { hasData: !!data, hasError: !!error, error });
-
-      if (error) {
-        console.error('[Profile] Error fetching user data:', error);
-        // Dacă există o eroare, folosim datele din context
-        if (user) {
-          setUserData(user);
-        }
+      const { data: meData, error: meError } = await apiClient.getMe();
+      if (meError) {
+        if (user) setUserData(user);
+        setLoading(false);
         return;
       }
-      if (data) {
-        console.log('[Profile] User data received:', data);
-        setUserData(data);
+      if (meData) {
+        let merged = { ...meData };
+        const hasCards = Array.isArray((meData as any).discount_cards) && (meData as any).discount_cards.length > 0;
+        if (!hasCards) {
+          const { data: cardsRes } = await apiClient.getUserDiscountCards(1);
+          const raw = cardsRes as any;
+          const cards = raw?.results ?? raw?.discount_cards ?? (Array.isArray(raw) ? raw : []);
+          const normalized = cards.map((c: any) => {
+            const pct = c.max_discount_percent != null ? Number(c.max_discount_percent) : c.discount_value;
+            const discount_value = (pct === 5 ? 5 : 10) as 5 | 10;
+            return {
+              id: c.id,
+              discount_value,
+              expires_at: c.expires_at ?? null,
+              barcode: c.barcode ?? c.code,
+            };
+          });
+          merged = { ...meData, discount_cards: normalized };
+        }
+        setUserData(merged);
       } else if (user) {
-        // Dacă nu primim date, folosim datele din context
-        console.log('[Profile] No data received, using context user data');
         setUserData(user);
       }
     } catch (err) {
-      console.error("[Profile] Eroare la preluarea datelor utilizatorului:", err);
-      // În caz de eroare, folosim datele din context
-      if (user) {
-        setUserData(user);
-      }
+      if (user) setUserData(user);
     } finally {
       setLoading(false);
     }
@@ -141,15 +151,18 @@ const ProfileScreen = () => {
         }
       };
 
-      console.log('[Profile] Fetching notification IDs...');
+      if (__DEV__) {
+        console.log('[Profile] Fetching notification IDs...');
+      }
       const { data, error } = await apiClient.getNotificationIds();
       
       const notificationIds = Array.isArray(data) ? data : [];
-      console.log('[Profile] Notification IDs response:', { hasData: !!data, hasError: !!error, dataLength: notificationIds.length, error });
+      if (__DEV__) {
+        console.log('[Profile] Notification IDs response:', { hasData: !!data, hasError: !!error, dataLength: notificationIds.length });
+      }
 
       if (error) {
-        console.error('[Profile] Eroare la preluarea notificărilor:', error);
-        // Setăm valori default în caz de eroare
+        // Pe noul backend endpoint-ul /notifications poate să nu existe (404) – tratăm ca „fără notificări”
         setUnreadCount(0);
         setTotalNotifications(0);
         return;
@@ -204,7 +217,11 @@ const ProfileScreen = () => {
       // Actualizează setul de ID-uri cunoscute
       lastNotificationIdsRef.current = currentNotificationIds;
     } catch (err) {
-      console.error('Eroare la numărarea notificărilor:', err);
+      if (__DEV__) {
+        console.warn('[Profile] Notificări indisponibile:', err);
+      }
+      setUnreadCount(0);
+      setTotalNotifications(0);
     }
   }, []);
 
@@ -227,15 +244,58 @@ const ProfileScreen = () => {
         style: "destructive",
         onPress: async () => {
           try {
-            setUser(null); // setUser șterge automat din AsyncStorage
-            router.replace("/Login");
-          } catch (e) {
-            console.error("Logout error:", e);
+            await apiClient.logout();
+          } catch (_) {
+            // ignoră eroare la logout (token invalid etc.)
           }
+          setUser(null);
+          router.replace("/Login");
         },
       },
     ]);
   }, [setUser, router]);
+
+  const openAddCardModal = useCallback(() => {
+    setAddCardCode("");
+    setAddCardError(null);
+    setAddCardResult(null);
+    setShowAddCardModal(true);
+  }, []);
+
+  const closeAddCardModal = useCallback(() => {
+    setShowAddCardModal(false);
+    setAddCardLoading(false);
+    setAddCardError(null);
+    setAddCardResult(null);
+  }, []);
+
+  const handleVerifyCard = useCallback(async () => {
+    const code = addCardCode.trim();
+    if (!code) {
+      setAddCardError("Introdu codul de pe card.");
+      return;
+    }
+    const phone = (userData || user)?.telefon?.trim() ?? "";
+    if (!phone) {
+      setAddCardError("Completează numărul de telefon în Profil (Editare profil), apoi încearcă din nou.");
+      return;
+    }
+    setAddCardError(null);
+    setAddCardResult(null);
+    setAddCardLoading(true);
+    try {
+      const { data, error } = await getDiscountCardStatus(code, phone);
+      if (error) {
+        setAddCardError(error);
+        return;
+      }
+      if (data) {
+        setAddCardResult(data);
+      }
+    } finally {
+      setAddCardLoading(false);
+    }
+  }, [addCardCode, userData, user]);
 
   const fullName = useMemo(() => {
     const data = userData || user;
@@ -370,9 +430,26 @@ const ProfileScreen = () => {
               </Animated.View>
             )}
 
+          {/* Buton Adaugă card */}
+          <TouchableOpacity
+            style={[
+              responsiveStyles.addCardButton,
+              {
+                backgroundColor: isDark ? colors.surface : 'rgba(0,0,0,0.04)',
+                borderColor: isDark ? colors.border : colors.primaryButton,
+              },
+            ]}
+            onPress={openAddCardModal}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="card-outline" size={responsiveSize(22, scale)} color={colors.primaryButton} />
+            <Text style={[responsiveStyles.addCardButtonText, { color: colors.text }]}>Adaugă card de reducere</Text>
+            <Ionicons name="add-circle-outline" size={responsiveSize(20, scale)} color={colors.primaryButton} />
+          </TouchableOpacity>
+
           {/* Carduri reducere – aspect ca înainte; date din API, un singur card selectat pentru barcode */}
           {(() => {
-            const cards = (displayUserData as any)?.discount_cards as { id: number; discount_value: 5 | 10; expires_at: string | null }[] | undefined;
+            const cards = (displayUserData as any)?.discount_cards as { id: number; discount_value: 5 | 10; expires_at: string | null; barcode?: string }[] | undefined;
             const activeCards = Array.isArray(cards) ? cards.filter((c) => !c.expires_at || new Date(c.expires_at) > new Date()) : [];
             const selectedId = (displayUserData as any)?.selected_discount_card_id as number | null | undefined;
             const selectedCard = activeCards.find((c) => c.id === selectedId) || activeCards[0];
@@ -394,17 +471,18 @@ const ProfileScreen = () => {
                     setCardIndex(idx);
                   }}
                 >
-                  {activeCards.map((card) => {
+                  {activeCards.map((card, index) => {
                     const isSelected = card.id === selectedCard?.id;
+                    const uniqueKey = card.id != null ? `card-${card.id}` : `card-fallback-${index}`;
+                    const cardCodeDisplay = card.barcode ?? (displayUserData?.id != null && card.id != null ? `VOLTA-${displayUserData.id}-${card.id}`.slice(0, 20) : '—');
+                    const barcodeDisplay = card.barcode ?? (displayUserData?.id != null && card.id != null ? `${String(displayUserData.id).padStart(6, '0')}${String(card.id).padStart(6, '0')}`.slice(0, 12) : undefined);
                     return (
-                      <View key={card.id} style={[responsiveStyles.cardPage, { width: pageWidth }]}>
+                      <View key={uniqueKey} style={[responsiveStyles.cardPage, { width: pageWidth }]}>
                         <DiscountCard
                           name={cardName}
                           discountValue={card.discount_value}
-                          cardCode={`VOLTA-${displayUserData?.id ?? ''}-${card.id}`.slice(0, 20) || "VOLTA-0000"}
-                          barcodeValue={displayUserData?.id != null && card.id != null
-                            ? `${String(displayUserData.id).padStart(6, '0')}${String(card.id).padStart(6, '0')}`.slice(0, 12)
-                            : "458712345678"}
+                          cardCode={cardCodeDisplay}
+                          barcodeValue={barcodeDisplay}
                           profileMode
                           variant={card.discount_value === 5 ? 'secondary' : 'primary'}
                           maxWidth={pageWidth - 16}
@@ -421,9 +499,9 @@ const ProfileScreen = () => {
                               if (!displayUserData?.id) return;
                               const { error } = await apiClient.setSelectedCard(displayUserData.id, card.id);
                               if (error) return;
-                              const { data } = await apiClient.getUser(displayUserData.id);
+                              const { data } = await apiClient.getMe();
                               if (data) {
-                                setUserData(data);
+                                setUserData({ ...data, discount_cards: (displayUserData as any)?.discount_cards ?? data.discount_cards });
                                 setUser(data);
                                 setSelectedCardPercent(card.discount_value);
                               }
@@ -539,6 +617,97 @@ const ProfileScreen = () => {
           </Animated.View>
         </ScrollView>
       </View>
+
+      {/* Modal Adaugă card */}
+      <Modal
+        visible={showAddCardModal}
+        transparent
+        animationType="fade"
+        onRequestClose={closeAddCardModal}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          style={[modalStyles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}
+          onPress={closeAddCardModal}
+        >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={modalStyles.modalKeyboardWrap}
+          >
+            <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={[modalStyles.modalBox, { backgroundColor: colors.background }]}>
+              <View style={[modalStyles.modalHeader, { borderBottomColor: colors.border }]}>
+                <Text style={[modalStyles.modalTitle, { color: colors.text }]}>Adaugă card de reducere</Text>
+                <TouchableOpacity onPress={closeAddCardModal} style={[modalStyles.modalCloseBtn, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)' }]}>
+                  <Ionicons name="close" size={24} color={colors.text} />
+                </TouchableOpacity>
+              </View>
+              <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={modalStyles.modalScroll}>
+                {!addCardResult ? (
+                  <>
+                    <Text style={[modalStyles.modalLabel, { color: colors.textMuted }]}>Numărul de pe card</Text>
+                    <TextInput
+                      style={[modalStyles.modalInput, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', borderColor: colors.border, color: colors.text }]}
+                      placeholder="Ex: 121717"
+                      placeholderTextColor={colors.textMuted}
+                      value={addCardCode}
+                      onChangeText={(t) => { setAddCardCode(t); setAddCardError(null); }}
+                      keyboardType="number-pad"
+                      maxLength={20}
+                    />
+                    <Text style={[modalStyles.modalHint, { color: colors.textMuted }]}>
+                      Se verifică automat cu numărul de telefon din cont.
+                    </Text>
+                    {addCardError ? (
+                      <View style={[modalStyles.modalErrorWrap, { backgroundColor: isDark ? 'rgba(220,50,50,0.15)' : 'rgba(220,50,50,0.1)' }]}>
+                        <Ionicons name="warning-outline" size={18} color="#c62828" />
+                        <Text style={modalStyles.modalErrorText}>{addCardError}</Text>
+                      </View>
+                    ) : null}
+                    <TouchableOpacity
+                      style={[modalStyles.modalVerifyBtn, { backgroundColor: colors.primaryButton }]}
+                      onPress={handleVerifyCard}
+                      disabled={addCardLoading}
+                      activeOpacity={0.85}
+                    >
+                      {addCardLoading ? (
+                        <ActivityIndicator size="small" color="#000" />
+                      ) : (
+                        <>
+                          <Ionicons name="checkmark-circle-outline" size={22} color="#000" />
+                          <Text style={modalStyles.modalVerifyBtnText}>Verifică card</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <>
+                    <View style={[modalStyles.modalSuccessCard, { backgroundColor: isDark ? 'rgba(34,197,94,0.12)' : 'rgba(34,197,94,0.08)', borderColor: '#22c55e' }]}>
+                      <Ionicons name="checkmark-circle" size={32} color="#22c55e" />
+                      <Text style={[modalStyles.modalSuccessTitle, { color: colors.text }]}>Card valid</Text>
+                      <Text style={[modalStyles.modalSuccessRow, { color: colors.text }]}>Titular: {addCardResult.card_owner}</Text>
+                      <Text style={[modalStyles.modalSuccessRow, { color: colors.textMuted }]}>Reducere max: {addCardResult.max_discount_percent}%</Text>
+                      {addCardResult.cashback_percent != null && addCardResult.cashback_percent > 0 ? (
+                        <Text style={[modalStyles.modalSuccessRow, { color: colors.textMuted }]}>Cashback: {addCardResult.cashback_percent}%</Text>
+                      ) : null}
+                      <Text style={[modalStyles.modalSuccessRow, { color: colors.textMuted }]}>Barcode: {addCardResult.barcode}</Text>
+                    </View>
+                    <Text style={[modalStyles.modalSuccessHint, { color: colors.textMuted }]}>
+                      Cardul este activ și legat de acest telefon. Îl poți folosi la magazin.
+                    </Text>
+                    <TouchableOpacity
+                      style={[modalStyles.modalVerifyBtn, { backgroundColor: colors.primaryButton }]}
+                      onPress={closeAddCardModal}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={modalStyles.modalVerifyBtnText}>Închide</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </ScrollView>
+            </TouchableOpacity>
+          </KeyboardAvoidingView>
+        </TouchableOpacity>
+      </Modal>
     </Screen>
   );
 };
@@ -767,5 +936,133 @@ const getStyles = (isSmallScreen: boolean, scale: number) => StyleSheet.create({
   cardSelectButtonText: {
     fontSize: responsiveSize(13, scale),
     fontWeight: '600' as const,
+  },
+  addCardButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: responsiveSize(14, scale),
+    paddingHorizontal: responsiveSize(16, scale),
+    borderRadius: 12,
+    borderWidth: 1.5,
+    marginBottom: responsiveSize(16, scale),
+    marginHorizontal: responsiveWidth(5),
+    gap: responsiveSize(10, scale),
+  },
+  addCardButtonText: {
+    fontSize: responsiveSize(16, scale),
+    fontWeight: '600',
+  },
+});
+
+const modalStyles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalKeyboardWrap: {
+    width: '100%',
+    maxWidth: 400,
+  },
+  modalBox: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    maxHeight: '85%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    flex: 1,
+  },
+  modalCloseBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalScroll: {
+    padding: 20,
+  },
+  modalLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+    marginTop: 12,
+  },
+  modalHint: {
+    fontSize: 12,
+    marginTop: 6,
+    marginBottom: 4,
+    fontStyle: 'italic',
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+  },
+  modalErrorWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 12,
+    marginTop: 16,
+  },
+  modalErrorText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#c62828',
+    fontWeight: '500',
+  },
+  modalVerifyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: 14,
+    marginTop: 20,
+    gap: 8,
+  },
+  modalVerifyBtnText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#000',
+  },
+  modalSuccessCard: {
+    padding: 20,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  modalSuccessTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  modalSuccessRow: {
+    fontSize: 14,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  modalSuccessHint: {
+    fontSize: 13,
+    textAlign: 'center',
+    marginBottom: 16,
+    lineHeight: 20,
   },
 });

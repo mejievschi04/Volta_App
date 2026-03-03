@@ -10,10 +10,11 @@ import { getColors, typography } from './_components/theme';
 import { ThemeContext } from './_context/ThemeContext';
 import { useResponsive, responsiveSize } from './_hooks/useResponsive';
 import { useBottomMenuInset } from './_hooks/useBottomMenuInset';
+import { apiClient } from '../lib/apiClient';
 
 const voltaLogo = require('../assets/icons/Volta Logo 2@300x 1.png');
 
-const stores = [
+const MOCK_STORES = [
   { id: 1, name: 'Service Centru', latitude: 47.019253274004505, longitude: 28.864151533617296, hours: 'Luni - Vineri: 09:00 - 18:00\nSâmbătă: 09:00 - 15:00\nDuminică nu se lucrează', phone: '+37360123456' },
   { id: 2, name: 'Volta 1', latitude: 46.980650614582785, longitude: 28.890921593605434, hours: 'Luni - Vineri: 09:00 - 20:00\nSâmbătă: 09:00 - 20:00\nDuminică nu se lucrează', phone: '+37360123457' },
   { id: 3, name: 'Volta 2 "Tools"', latitude: 46.99577603566025, longitude: 28.90237267409418, hours: 'Luni - Vineri: 09:00 - 20:00\nSâmbătă: 09:00 - 20:00\nDuminică nu se lucrează', phone: '+37360123458' },
@@ -23,6 +24,18 @@ const stores = [
   { id: 7, name: 'Volta 6', latitude: 46.99437774555062, longitude: 28.81509673970665, hours: 'Luni - Vineri: 09:00 - 20:00\nSâmbătă: 09:00 - 20:00\nDuminică nu se lucrează', phone: '+37360123462' },
   { id: 8, name: 'Volta 7', latitude: 46.83412784551735, longitude: 28.610163620117056, hours: 'Luni - Vineri: 09:00 - 20:00\nSâmbătă: 09:00 - 20:00\nDuminică nu se lucrează', phone: '+37360123463' },
 ];
+
+function normalizeStore(s: any, index: number): { id: number; name: string; latitude: number; longitude: number; hours: string; phone: string } {
+  const id = s.id ?? s.pk ?? index + 1;
+  const name = s.name ?? s.title ?? s.address ?? `Magazin ${id}`;
+  const lat = s.latitude ?? s.lat ?? s.latitudine;
+  const lng = s.longitude ?? s.lng ?? s.longitudine;
+  const latitude = typeof lat === 'number' && !isNaN(lat) ? lat : MOCK_STORES[0]?.latitude ?? 47;
+  const longitude = typeof lng === 'number' && !isNaN(lng) ? lng : MOCK_STORES[0]?.longitude ?? 28;
+  const hours = s.hours ?? s.opening_hours ?? s.schedule ?? s.working_hours ?? '';
+  const phone = s.phone ?? s.telefon ?? s.phone_number ?? '';
+  return { id: Number(id), name: String(name), latitude, longitude, hours: String(hours), phone: String(phone) };
+}
 
 export default function Harta() {
   const { theme } = useContext(ThemeContext);
@@ -36,8 +49,21 @@ export default function Harta() {
   const [distances, setDistances] = useState<Record<number, number>>({});
   const [selectedStoreId, setSelectedStoreId] = useState<number | null>(null);
   const [showInfoPanel, setShowInfoPanel] = useState(false);
+  const [storesList, setStoresList] = useState<typeof MOCK_STORES>(MOCK_STORES);
   const mapRef = useRef<MapView>(null);
   const slideAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    (async () => {
+      const { data, error } = await apiClient.getShops();
+      if (!error && Array.isArray(data) && data.length > 0) {
+        const normalized = data.map((s: any, i: number) => normalizeStore(s, i));
+        if (normalized.some((s) => !isNaN(s.latitude) && !isNaN(s.longitude))) setStoresList(normalized);
+      }
+    })();
+  }, []);
+
+  const stores = storesList;
 
   const responsiveLayout = useMemo(() => {
     const storesStripHeight = responsiveSize(12, scale) + responsiveSize(56, scale) + responsiveSize(12, scale);
@@ -77,7 +103,9 @@ export default function Harta() {
       map[s.id] = getDistance(location.latitude, location.longitude, s.latitude, s.longitude);
     }
     setDistances(map);
-  }, [location]);
+    const nearestStore = getNearestStore(location, stores);
+    setNearest(nearestStore);
+  }, [location, stores]);
 
   useEffect(() => {
     if (!showInfoPanel) {

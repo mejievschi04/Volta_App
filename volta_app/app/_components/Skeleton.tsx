@@ -128,3 +128,5 @@ const styles = StyleSheet.create({
     marginHorizontal: 0,
   },
 });
+
+export default Skeleton;

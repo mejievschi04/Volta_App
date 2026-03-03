@@ -6,7 +6,7 @@ export default defineConfig({
   base: '/admin/',
   root: '.',
   build: {
-    outDir: '../backend/public/admin',
+    outDir: 'dist',
     emptyOutDir: true,
     rollupOptions: {
       output: {
@@ -18,11 +18,5 @@ export default defineConfig({
   },
   server: {
     port: 5174,
-    proxy: {
-      '/api': {
-        target: 'http://localhost:3000',
-        changeOrigin: true,
-      },
-    },
   },
 });

@@ -1,0 +1,1199 @@
+API endpoints from backend/routes/api.php
+Generated from routes/api.php + controller/service request parsing.
+
+Notes:
+- Every route below also exists with optional locale prefix: /{locale}/..., where {locale} is ro or ru.
+- "Fields" means the request inputs read in backend: path params, query params, body keys.
+- For routes protected by auth.token, auth is usually sent via Authorization: Token <token> or Bearer <token>.
+
+AUTH
+
+POST /auth/token/login
+Fields: body.username, body.password
+
+POST /auth/token/logout
+Fields: query.token (optional fallback if token is not sent in Authorization header)
+
+GET /auth/users/me
+Fields: none
+
+PUT/PATCH /auth/users/me
+Fields: body.username, body.first_name, body.last_name, body.email
+
+POST /auth/users/set_password
+Fields: body.current_password, body.new_password
+
+SYSTEM
+
+GET /check-excel-status
+Fields: query.run_task
+
+ACCOUNTS
+
+POST /accounts/google-login
+Fields: body.access_token
+
+POST /accounts/facebook-login
+Fields: body.access_token
+
+GET /accounts/check-token
+Fields: query.token
+
+POST /accounts/add-mail-for-mailing
+Fields: body.* (controller forwards the whole body to SendPulse; field names are not restricted in controller)
+
+GET /accounts/feeds-file-last-changes
+Fields: none
+
+GET /accounts/users
+Fields: none
+
+POST /accounts/users
+Fields: body.username, body.first_name, body.last_name, body.email, body.profile.name, body.profile.name_last, body.profile.salutation, body.profile.birth_date, body.profile.username, body.profile.email, body.profile.phone, body.profile.country, body.profile.city, body.profile.region, body.profile.address, body.profile.cashback, body.profile.image, body.profile.company_name, body.profile.company_email, body.profile.type_company, body.profile.legal_address, body.profile.idno, body.profile.tva, body.profile.iban, body.profile.c_b, body.profile.bank
+
+GET /accounts/users/{user}
+Fields: path.user
+
+PUT/PATCH /accounts/users/{user}
+Fields: path.user, body.username, body.first_name, body.last_name, body.email, body.profile
+Notes: body.profile is accepted as an object and filled directly on the profile model.
+
+GET /accounts/address
+Fields: none
+
+POST /accounts/address
+Fields: body.name, body.name_last, body.email, body.phone, body.country, body.city, body.address, body.company_name
+
+PUT/PATCH /accounts/address/{address}
+Fields: path.address, body.name, body.name_last, body.email, body.phone, body.country, body.city, body.address, body.company_name
+
+DELETE /accounts/address/{address}
+Fields: path.address
+
+PUT/PATCH /accounts/user-profile/{user_profile}
+Fields: path.user_profile, body.name, body.name_last, body.salutation, body.birth_date, body.username, body.email, body.phone, body.country, body.city, body.region, body.address, body.cashback, body.image, body.company_name, body.company_email, body.type_company, body.legal_address, body.idno, body.tva, body.iban, body.c_b, body.bank
+
+POST /accounts/partner-form
+Fields: body.company, body.fiscal_code, body.activity_type, body.name, body.position, body.phone, body.email, body.comment
+
+POST /accounts/vacancy-form
+Fields: body.vacancy_title, body.name, body.phone, body.email, body.file
+Notes: body.file can be multipart upload, base64 string, or object payload containing file data.
+
+POST /accounts/find-error-form
+Fields: body.contact, body.comment, body.page_link
+
+GET /accounts/discount-cards
+Fields: none
+
+POST /accounts/discount-cards
+Fields: body.code
+
+POST /accounts/discount-cards/refresh
+Fields: none
+
+DELETE /accounts/discount-cards/{discount_card}
+Fields: path.discount_card
+
+API
+
+POST /api/phone_password_reset
+Fields: body.phone, body.email
+
+POST /api/password_reset
+Fields: body.email
+
+POST /api/password_reset/confirm
+Fields: body.password, body.token
+
+POST /api/password_reset/validate_token
+Fields: body.token
+
+POST /api/newsletter/product-availability-subscription
+Fields: body.username, body.email, body.comment, body.product, body.language
+
+MAIN
+
+GET /main/slider-category-for-home-page
+Fields: none
+
+GET /main/slider-category-for-home-page/{slideCategoryForHomePage}
+Fields: path.slideCategoryForHomePage
+
+GET /main/privacy-policy
+Fields: none
+
+GET /main/privacy-policy/{privacyPolicy}
+Fields: path.privacyPolicy
+
+GET /main/terms-of-use
+Fields: none
+
+GET /main/terms-of-use/{termsOfUse}
+Fields: path.termsOfUse
+
+GET /main/slider-brands-for-home-page
+Fields: none
+
+GET /main/slider-brands-for-home-page/{slideBrandsForHomePage}
+Fields: path.slideBrandsForHomePage
+
+GET /main/home-page-slider
+Fields: none
+
+GET /main/home-page-slider/{slideHomePage}
+Fields: path.slideHomePage
+
+GET /main/slides-popular-product
+Fields: none
+
+GET /main/slider-discounted-product
+Fields: none
+
+GET /main/slider-discounted-product/{slideDiscounted}
+Fields: path.slideDiscounted
+
+GET /main/slider-promotions
+Fields: none
+
+GET /main/slider-promotions/{slug}
+Fields: path.slug
+
+GET /main/slider-new_products
+Fields: none
+
+GET /main/about-company
+Fields: none
+
+GET /main/about-company/{aboutCompany}
+Fields: path.aboutCompany
+
+GET /main/delivery-page
+Fields: none
+
+GET /main/delivery-page/{deliveryPage}
+Fields: path.deliveryPage
+
+GET /main/blog-category
+Fields: none
+
+GET /main/blog-category/{postCategory}
+Fields: path.postCategory
+
+GET /main/blog
+Fields: none
+
+GET /main/blog/{slug}
+Fields: path.slug
+
+GET /main/how-to-make-order
+Fields: none
+
+GET /main/how-to-make-order/{howToMakeOrder}
+Fields: path.howToMakeOrder
+
+GET /main/payment-page
+Fields: none
+
+GET /main/payment-page/{paymentPage}
+Fields: path.paymentPage
+
+GET /main/guarantees-page
+Fields: none
+
+GET /main/guarantees-page/{guaranteesPage}
+Fields: path.guaranteesPage
+
+GET /main/gift_card-page
+Fields: none
+
+GET /main/gift_card-page/{giftCardPage}
+Fields: path.giftCardPage
+
+GET /main/credit-page
+Fields: none
+
+GET /main/credit-page/{creditPage}
+Fields: path.creditPage
+
+GET /main/cashback-page
+Fields: none
+
+GET /main/cashback-page/{cashbackPage}
+Fields: path.cashbackPage
+
+GET /main/partner-page
+Fields: none
+
+GET /main/partner-page/{partnerPage}
+Fields: path.partnerPage
+
+GET /main/certificate
+Fields: none
+
+GET /main/certificate/{certificatePage}
+Fields: path.certificatePage
+
+GET /main/contacts
+Fields: none
+
+GET /main/contacts/{contact}
+Fields: path.contact
+
+GET /main/requisites
+Fields: none
+
+GET /main/requisites/{requisites}
+Fields: path.requisites
+
+GET /main/vacancies
+Fields: none
+
+GET /main/vacancies/{vacancyPage}
+Fields: path.vacancyPage
+
+GET /main/viewed-product
+Fields: query.forPage
+
+POST /main/viewed-product
+Fields: body.product
+
+GET /main/viewed-product/{viewedProduct}
+Fields: path.viewedProduct, query.forPage
+
+GET /main/get-shops
+Fields: none
+
+GET /main/social-projects
+Fields: none
+
+GET /main/social-projects/{slug}
+Fields: path.slug
+
+GET /main/get_meta_for_pages
+Fields: none
+
+GET /main/get_meta_for_pages/{metaForPage}
+Fields: path.metaForPage
+
+GET /main/subcategory-brand-banner
+Fields: query.category__slug
+
+POST /main/add_views_to_product
+Fields: body.product_id
+
+GET /main/test
+Fields: none
+
+MOBILE APP
+
+POST /app/mobile/auth/login
+Fields: body.username, body.password
+
+POST /app/mobile/auth/logout
+Fields: query.token (optional fallback if token is not sent in Authorization header)
+
+GET /app/mobile/auth/me
+Fields: none
+
+GET /app/mobile/products
+Fields: query.page
+
+GET /app/mobile/discount-cards
+Fields: query.page
+
+GET /app/mobile/user/discount-cards
+Fields: query.page
+
+SHOP
+
+GET /shop/category-in-home_page
+Fields: none
+
+GET /shop/category-in-home_page/{slug}
+Fields: path.slug
+
+GET /shop/subcategory
+Fields: none
+
+GET /shop/subcategory/{slug}
+Fields: path.slug
+
+GET /shop/subsubcategory
+Fields: none
+
+GET /shop/subsubcategory/{slug}
+Fields: path.slug
+
+GET /shop/product
+Fields: query.page, query.page_size, query.ordering, query.search, query.getBrand, query.getSubcat, query.brand_filter, query.withAttr, query.forCompare, query.id, query.id__exact, query.id__in, query.brand, query.brand__exact, query.brand__in, query.brand__slug, query.brand__slug__exact, query.brand__slug__in, query.category, query.category__exact, query.category__in, query.category__slug, query.category__slug__exact, query.category__slug__in, query.subcategory, query.subcategory__exact, query.subcategory__in, query.subcategory__slug, query.subcategory__slug__exact, query.subcategory__slug__in, query.subsubcategory, query.subsubcategory__exact, query.subsubcategory__in, query.subsubcategory__slug, query.subsubcategory__slug__exact, query.subsubcategory__slug__in, query.discount, query.discount__exact, query.discount__in, query.discount__icontains, query.discount__contains, query.is_product_of_the_day, query.product_attribute__filter__exact, query.product_attribute__filter__in, query.price__gte, query.price__lte, query.created_at__gt, query.type, query.brand_categories
+
+GET /shop/product-autosuggest
+Fields: query.search, query.q, query.limit
+
+GET /shop/product/attributes
+Fields: same filter query fields as /shop/product, except pagination/order helper fields are not used for the response itself
+Fields (explicitly read outside the shared filters): query.product_attribute__filter__in, query.search, query.type, query.brand__slug
+
+GET /shop/product-search
+Fields: query.search, query.page, query.page_size
+
+GET /shop/product-search-list
+Fields: same filter query fields as /shop/product, plus query.page, query.page_size, query.ordering
+
+GET /shop/product/{slug}
+Fields: path.slug
+
+POST /shop/promocode
+Fields: body.coupon_uid, body.coupon_code, body.description, body.discount_type, body.coupon_amount, body.allow_free_shipping, body.coupon_start_date, body.coupon_expiry_date, body.minimum_spend, body.maximum_spend, body.individual_use_only, body.exclude_sale_items, body.products, body.exclude_products, body.product_categories, body.exclude_categories, body.email_restrictions, body.usage_limit_per_coupon, body.usage_limit_per_user
+
+GET /shop/brand
+Fields: none
+
+GET /shop/brand/{slug}
+Fields: path.slug
+
+GET /shop/get-stores
+Fields: none
+
+GET /shop/favorite-products
+Fields: none
+
+POST /shop/favorite-products
+Fields: body.product
+
+DELETE /shop/favorite-products/{favoriteProduct}
+Fields: path.favoriteProduct
+
+GET /shop/favorite-products-delete-all
+Fields: none
+
+GET /shop/reviews
+Fields: none
+
+POST /shop/reviews
+Fields: body.product, body.name, body.avatar, body.specialization, body.email, body.text, body.stars
+
+GET /shop/change-diacritic
+Fields: query.run, query.t
+
+GET /shop/run_update_products
+Fields: none
+
+GET /shop/run_update_products_available_balance_night
+Fields: none
+
+ORDERS
+
+GET /orders/temporary-cart
+Fields: none
+
+POST /orders/temporary-cart
+Fields: body.product_id or body.product, body.quantity
+Notes: accepts either a single object or an array of objects.
+
+GET /orders/temporary-cart/{temporaryCart}
+Fields: path.temporaryCart
+
+PUT/PATCH /orders/temporary-cart/{temporaryCart}
+Fields: path.temporaryCart, body.quantity
+
+DELETE /orders/temporary-cart/{temporaryCart}
+Fields: path.temporaryCart
+
+GET /orders/cart-delete-all
+Fields: none
+
+GET /orders/orders
+Fields: query.user, query.transaction_id, query.t, query.token
+Notes: query.token is used only as a fallback auth token; X-Integration-Token header is also accepted for integration access.
+
+POST /orders/orders
+Fields: body.user or body.user_id, body.name, body.delivery_type, body.pay_method, body.phone, body.total_price, body.total_discount, body.cost_of_delivery, body.address, body.city, body.suburb, body.email, body.company, body.comment, body.promo_code, body.cashback, body.use_cashback, body.is_fast_order, body.credit_period, body.monthly_payments, body.transaction_id, body.transaction_status, body.rrn, body.client_ip, body.status_card_payment, body.exported, body.viewed, body.payment_link_send, body.discount_card, body.lang, body.store_id, body.pickup_address_id, body.order_products[].product_id or body.order_products[].product, body.order_products[].quantity, body.order_products[].unit_price, body.order_products[].total_price, body.order_products[].discount, body.order_products[].promo_discount, body.credit
+Credit payload for Iute Credit: body.credit.productId, body.credit.period, body.credit.iban, body.credit.birth_date
+Credit payload for Microinvest: body.credit.period, body.credit.credit_guarantor_name, body.credit.credit_guarantor_phone, body.credit.photo_client_id, body.credit.iban, body.credit.birth_date, body.credit.productId
+Credit payload for EasyCredit: body.credit.product_id, body.credit.uin, body.credit.ap_date_of_birth, body.credit.ap_first_name, body.credit.ap_last_name, body.credit.ca_mobile, body.credit.goods_name, body.credit.credit_amount, body.credit.number_of_installments, body.credit.first_installment_date, body.credit.calc
+
+POST /orders/orders/get-transaction-id
+Fields: body.order_id, body.token
+
+GET /orders/orders/{order}
+Fields: path.order, query.hash, query.token
+Notes: query.token is used only as a fallback auth token.
+
+GET /orders/payment-history
+Fields: none
+
+POST /orders/payment-history
+Fields: body.order_id, body.amount, body.confirmed
+
+GET /orders/iute-credit/periods
+Fields: query.items or query.items[0].id, query.items[0].count, query.items[1].id, query.items[1].count, ...
+Notes: query.items can also be a JSON array of objects with id and count.
+
+POST /orders/iute-credit/validate-iban
+Fields: body.iban
+
+POST /orders/iute-credit/callback
+Fields: body.orderId, body.status
+
+GET /orders/credit
+Fields: query.items or query.items[0].id, query.items[0].count, query.items[1].id, query.items[1].count, ...
+Notes: query.items can also be a JSON array of objects with id and count.
+
+GET /orders/easy-credit/offers
+Fields: query.amount
+
+POST /orders/easy-credit/installment-calc
+Fields: body.product_id, body.installments, body.first_installment_date, body.loan_amount
+
+POST /orders/discount-card/calculate
+Fields: body.discount_card, body.items[].product_id or body.items[].ProductID, body.items[].quantity or body.items[].Quantity, body.items[].price or body.items[].Price
+
+INTEGRATIONS / EXPORT
+
+POST /api-1c/v3/product-of-the-day
+Fields: body.product_guid
+Notes: body.product_guid must be an array.
+
+POST /wp-json/wc/v3/product-of-the-day
+Fields: body.product_guid
+Notes: body.product_guid must be an array.
+
+GET /get_slugs
+Fields: none
+
+GET /api-1c/v3/orders
+Fields: query.t
+
+GET /api-1c/v3/orders/{order}
+Fields: path.order, query.t
+
+GET /wp-json/wc/v3/orders
+Fields: query.t
+
+GET /wp-json/wc/v3/orders/{order}
+Fields: path.order, query.t
+
+GET /wp-json/wc/users
+Fields: query.status, query.t
+
+GET /wp-json/wc/v3/users
+Fields: query.status, query.t
+
+POST /wp-json/wc/v3/users/{userProfile}
+Fields: path.userProfile, body.status, query.t
+
+PAYMENTS / AUX
+
+POST /check-promo-code
+Fields: body.coupon_code, body.email, body.phone
+
+POST /payment_notification
+Fields: body.trans_id
+Notes: controller accepts the whole provider payload, but only trans_id is read explicitly in backend code.
+
+POST /payment-confirmation
+Fields: body.order_id
+
+POST /payment-return
+Fields: body.order_id
+
+POST /payment-partial-return
+Fields: body.order_id, body.amount
+
+POST /get_trans_id
+Fields: body.order_id, body.amount, body.currency, body.language
+Notes: controller forwards the request payload to MAIB; order_id is the only field explicitly required in backend code.
+
+GET /get-order
+Fields: query.order
+
+GET /get_unread_counter
+Fields: none
+
+AUTOCOMPLETE
+
+GET /attribute-value-autocomplete
+Fields: query.q, query.page, query.token
+Notes: query.token is an auth fallback if Authorization header or cookie token is not present.
+
+GET /attribute-name-autocomplete
+Fields: query.q, query.page, query.token
+Notes: query.token is an auth fallback if Authorization header or cookie token is not present.
+
+GET /accessory-autocomplete
+Fields: query.q, query.page, query.token
+Notes: query.token is an auth fallback if Authorization header or cookie token is not present.
+
+===============================================================================
+RESPONSE JSON EXAMPLES
+===============================================================================
+
+Notes:
+- Examples below are illustrative success payloads.
+- `204 No Content` means the endpoint does not return a JSON body on success.
+- Some endpoints return non-JSON content (plain text or redirect); those are marked explicitly.
+
+AUTH
+
+POST /auth/token/login
+Response example JSON:
+{"auth_token":"9f0b4c7a5f7d4e2c9d0a123456789abc"}
+
+POST /auth/token/logout
+Response body:
+204 No Content
+
+GET /auth/users/me
+Response example JSON:
+{"id":1,"username":"ion.popescu","first_name":"Ion","last_name":"Popescu","email":"ion@example.com","profile":{"id":10,"name":"Ion","name_last":"Popescu","salutation":"Dl","birth_date":"1990-05-12","username":"ion.popescu","email":"ion@example.com","phone":"060000000","country":"Moldova","city":"Chisinau","region":"Centru","address":"Str. Exemplu 1","cashback":120,"image":"https://api.volta.md/media/images/profile.jpg","company_name":"Volta SRL","company_email":"office@example.com","type_company":"SRL","legal_address":"Chisinau","idno":"1000000000000","tva":"0200000","iban":"MD00VI222222222222222222","c_b":"VICBMD2X","bank":"Victoriabank"}}
+
+PUT/PATCH /auth/users/me
+Response example JSON:
+{"id":1,"username":"ion.popescu","first_name":"Ion","last_name":"Popescu","email":"ion@example.com","profile":{"id":10,"name":"Ion","name_last":"Popescu","salutation":"Dl","birth_date":"1990-05-12","username":"ion.popescu","email":"ion@example.com","phone":"060000000","country":"Moldova","city":"Chisinau","region":"Centru","address":"Str. Exemplu 1","cashback":120,"image":"https://api.volta.md/media/images/profile.jpg","company_name":"Volta SRL","company_email":"office@example.com","type_company":"SRL","legal_address":"Chisinau","idno":"1000000000000","tva":"0200000","iban":"MD00VI222222222222222222","c_b":"VICBMD2X","bank":"Victoriabank"}}
+
+POST /auth/users/set_password
+Response example JSON:
+{"detail":"Password updated successfully."}
+
+SYSTEM
+
+GET /check-excel-status
+Response example JSON:
+{"finished":true,"path":"https://api.volta.md/feeds/google.xml"}
+
+ACCOUNTS
+
+POST /accounts/google-login
+Response example JSON:
+{"token":"8c6d4e2f1a0b9c8d7e6f123456789abc","id":1,"username":"ion@example.com","first_name":"Ion","last_name":"Popescu","email":"ion@example.com","profile":{"id":10,"name":"Ion","name_last":"Popescu","salutation":null,"birth_date":null,"username":"ion@example.com","email":"ion@example.com","phone":null,"country":null,"city":null,"region":null,"address":null,"cashback":0,"image":null,"company_name":null,"company_email":null,"type_company":null,"legal_address":null,"idno":null,"tva":null,"iban":null,"c_b":null,"bank":null}}
+
+POST /accounts/facebook-login
+Response example JSON:
+{"token":"5c4d3e2f1a0b9c8d7e6f123456789abc","id":1,"username":"facebook_123456","first_name":"Ion","last_name":"Popescu","email":"ion@example.com","profile":{"id":10,"name":"Ion","name_last":"Popescu","salutation":null,"birth_date":null,"username":"facebook_123456","email":"ion@example.com","phone":null,"country":null,"city":null,"region":null,"address":null,"cashback":0,"image":null,"company_name":null,"company_email":null,"type_company":null,"legal_address":null,"idno":null,"tva":null,"iban":null,"c_b":null,"bank":null}}
+
+GET /accounts/check-token
+Response example JSON:
+{"token":true}
+
+POST /accounts/add-mail-for-mailing
+Response example JSON:
+{"success":true}
+
+GET /accounts/feeds-file-last-changes
+Response example JSON:
+{"file_exists":true,"timestamp":"15:04:01 03.03.26","finished":true}
+
+GET /accounts/users
+Response example JSON:
+[{"id":1,"username":"ion.popescu","first_name":"Ion","last_name":"Popescu","email":"ion@example.com","profile":{"id":10,"name":"Ion","name_last":"Popescu","salutation":"Dl","birth_date":"1990-05-12","username":"ion.popescu","email":"ion@example.com","phone":"060000000","country":"Moldova","city":"Chisinau","region":"Centru","address":"Str. Exemplu 1","cashback":120,"image":"https://api.volta.md/media/images/profile.jpg","company_name":"Volta SRL","company_email":"office@example.com","type_company":"SRL","legal_address":"Chisinau","idno":"1000000000000","tva":"0200000","iban":"MD00VI222222222222222222","c_b":"VICBMD2X","bank":"Victoriabank"}}]
+
+POST /accounts/users
+Response example JSON:
+{"id":1,"username":"ion.popescu","first_name":"Ion","last_name":"Popescu","email":"ion@example.com","profile":{"id":10,"name":"Ion","name_last":"Popescu","salutation":"Dl","birth_date":"1990-05-12","username":"ion.popescu","email":"ion@example.com","phone":"060000000","country":"Moldova","city":"Chisinau","region":"Centru","address":"Str. Exemplu 1","cashback":120,"image":"https://api.volta.md/media/images/profile.jpg","company_name":"Volta SRL","company_email":"office@example.com","type_company":"SRL","legal_address":"Chisinau","idno":"1000000000000","tva":"0200000","iban":"MD00VI222222222222222222","c_b":"VICBMD2X","bank":"Victoriabank"}}
+
+GET /accounts/users/{user}
+Response example JSON:
+{"id":1,"username":"ion.popescu","first_name":"Ion","last_name":"Popescu","email":"ion@example.com","profile":{"id":10,"name":"Ion","name_last":"Popescu","salutation":"Dl","birth_date":"1990-05-12","username":"ion.popescu","email":"ion@example.com","phone":"060000000","country":"Moldova","city":"Chisinau","region":"Centru","address":"Str. Exemplu 1","cashback":120,"image":"https://api.volta.md/media/images/profile.jpg","company_name":"Volta SRL","company_email":"office@example.com","type_company":"SRL","legal_address":"Chisinau","idno":"1000000000000","tva":"0200000","iban":"MD00VI222222222222222222","c_b":"VICBMD2X","bank":"Victoriabank"}}
+
+PUT/PATCH /accounts/users/{user}
+Response example JSON:
+{"id":1,"username":"ion.popescu","first_name":"Ion","last_name":"Popescu","email":"ion@example.com","profile":{"id":10,"name":"Ion","name_last":"Popescu","salutation":"Dl","birth_date":"1990-05-12","username":"ion.popescu","email":"ion@example.com","phone":"060000000","country":"Moldova","city":"Chisinau","region":"Centru","address":"Str. Exemplu 1","cashback":120,"image":"https://api.volta.md/media/images/profile.jpg","company_name":"Volta SRL","company_email":"office@example.com","type_company":"SRL","legal_address":"Chisinau","idno":"1000000000000","tva":"0200000","iban":"MD00VI222222222222222222","c_b":"VICBMD2X","bank":"Victoriabank"}}
+
+GET /accounts/address
+Response example JSON:
+[{"id":1,"user_profile_id":10,"name":"Ion","name_last":"Popescu","email":"ion@example.com","phone":"060000000","country":"Moldova","city":"Chisinau","address":"Str. Exemplu 1","company_name":"Volta SRL","is_active":true}]
+
+POST /accounts/address
+Response example JSON:
+{"id":1,"user_profile_id":10,"name":"Ion","name_last":"Popescu","email":"ion@example.com","phone":"060000000","country":"Moldova","city":"Chisinau","address":"Str. Exemplu 1","company_name":"Volta SRL","is_active":true}
+
+PUT/PATCH /accounts/address/{address}
+Response example JSON:
+{"id":1,"user_profile_id":10,"name":"Ion","name_last":"Popescu","email":"ion@example.com","phone":"060000000","country":"Moldova","city":"Chisinau","address":"Str. Exemplu 1","company_name":"Volta SRL","is_active":true}
+
+DELETE /accounts/address/{address}
+Response body:
+204 No Content
+
+PUT/PATCH /accounts/user-profile/{user_profile}
+Response example JSON:
+{"id":10,"user_id":1,"name":"Ion","name_last":"Popescu","salutation":"Dl","birth_date":"1990-05-12","username":"ion.popescu","email":"ion@example.com","phone":"060000000","country":"Moldova","city":"Chisinau","region":"Centru","address":"Str. Exemplu 1","cashback":120,"image":"images/profile.jpg","company_name":"Volta SRL","company_email":"office@example.com","type_company":"SRL","legal_address":"Chisinau","idno":"1000000000000","tva":"0200000","iban":"MD00VI222222222222222222","c_b":"VICBMD2X","bank":"Victoriabank","status":"active","facebook_id":null,"date_creation":"2026-03-03T10:00:00Z","updated_on":"2026-03-03T10:10:00Z"}
+
+POST /accounts/partner-form
+Response example JSON:
+{"id":1,"company":"Volta SRL","fiscal_code":"1000000000000","activity_type":"Retail","name":"Ion Popescu","position":"Manager","phone":"060000000","email":"ion@example.com","comment":"Dorim parteneriat.","date_creation":"2026-03-03T10:00:00Z","updated_on":"2026-03-03T10:00:00Z"}
+
+POST /accounts/vacancy-form
+Response example JSON:
+{"id":1,"vacancy_title":"Consultant vanzari","name":"Ion Popescu","phone":"060000000","email":"ion@example.com","file":"files/cv_ion_popescu.pdf","date_creation":"2026-03-03T10:00:00Z"}
+
+POST /accounts/find-error-form
+Response example JSON:
+{"id":1,"contact":"ion@example.com","comment":"Pe pagina produsului lipseste specificatia.","page_link":"https://volta.md/produs/televizor-123","date_creation":"2026-03-03T10:00:00Z"}
+
+GET /accounts/discount-cards
+Response example JSON:
+[{"id":1,"user_profile":10,"code":"CARD-001","barcode":"BC-12345","max_discount_percent":12,"cashback_percent":2.5,"card_owner":"Ion Popescu","card_owner_phone":"69796349","card_type":"gold","bonus_type":"cashback","created_at":"2026-03-03T10:00:00Z"}]
+
+POST /accounts/discount-cards
+Response example JSON:
+{"id":1,"user_profile":10,"code":"CARD-001","barcode":"BC-12345","max_discount_percent":12,"cashback_percent":2.5,"card_owner":"Ion Popescu","card_owner_phone":"69796349","card_type":"gold","bonus_type":"cashback","created_at":"2026-03-03T10:00:00Z"}
+
+POST /accounts/discount-cards/refresh
+Response example JSON:
+{"cards":[{"id":1,"user_profile":10,"code":"CARD-001","barcode":"NEW-BC","max_discount_percent":10,"cashback_percent":3.75,"card_owner":"Ion Popescu","card_owner_phone":"69796349","card_type":"platinum","bonus_type":"bonus_points","created_at":"2026-03-03T10:00:00Z"}],"updated":[{"id":1,"user_profile":10,"code":"CARD-001","barcode":"NEW-BC","max_discount_percent":10,"cashback_percent":3.75,"card_owner":"Ion Popescu","card_owner_phone":"69796349","card_type":"platinum","bonus_type":"bonus_points","created_at":"2026-03-03T10:00:00Z"}],"failed":[]}
+
+DELETE /accounts/discount-cards/{discount_card}
+Response body:
+204 No Content
+
+API
+
+POST /api/phone_password_reset
+Response example JSON:
+{"status":"OK"}
+
+POST /api/password_reset
+Response example JSON:
+{"status":"OK"}
+
+POST /api/password_reset/confirm
+Response example JSON:
+{"status":"OK"}
+
+POST /api/password_reset/validate_token
+Response example JSON:
+{"status":"OK"}
+
+POST /api/newsletter/product-availability-subscription
+Response example JSON:
+{"id":1,"username":"Ion Popescu","email":"ion@example.com","comment":"Anuntati-ma cand revine in stoc.","is_active":true,"language":"ro","user_id":1,"product_id":501,"created_at":"2026-03-03T10:00:00Z","updated_at":"2026-03-03T10:00:00Z"}
+
+MAIN
+
+GET /main/slider-category-for-home-page
+Response example JSON:
+[{"title":"Electrocasnice","image":"https://api.volta.md/media/uploads/slider-category.jpg","url":"/shop/category-in-home_page/electrocasnice","sort":1}]
+
+GET /main/slider-category-for-home-page/{slideCategoryForHomePage}
+Response example JSON:
+{"title":"Electrocasnice","image":"https://api.volta.md/media/uploads/slider-category.jpg","url":"/shop/category-in-home_page/electrocasnice","sort":1}
+
+GET /main/privacy-policy
+Response example JSON:
+[{"title":"Politica de confidentialitate","description":"<p>Text politica...</p>","meta_title":"Politica de confidentialitate","meta_description":"Informatii despre confidentialitate"}]
+
+GET /main/privacy-policy/{privacyPolicy}
+Response example JSON:
+{"title":"Politica de confidentialitate","description":"<p>Text politica...</p>","meta_title":"Politica de confidentialitate","meta_description":"Informatii despre confidentialitate"}
+
+GET /main/terms-of-use
+Response example JSON:
+[{"title":"Termeni de utilizare","description":"<p>Text termeni...</p>","meta_title":"Termeni de utilizare","meta_description":"Termeni si conditii"}]
+
+GET /main/terms-of-use/{termsOfUse}
+Response example JSON:
+{"title":"Termeni de utilizare","description":"<p>Text termeni...</p>","meta_title":"Termeni de utilizare","meta_description":"Termeni si conditii"}
+
+GET /main/slider-brands-for-home-page
+Response example JSON:
+[{"id":1,"brand":{"id":3,"name":"Samsung","description":"Brand electronics","image":"https://api.volta.md/media/brands/samsung.png","slug":"samsung"}}]
+
+GET /main/slider-brands-for-home-page/{slideBrandsForHomePage}
+Response example JSON:
+{"id":1,"brand":{"id":3,"name":"Samsung","description":"Brand electronics","image":"https://api.volta.md/media/brands/samsung.png","slug":"samsung"}}
+
+GET /main/home-page-slider
+Response example JSON:
+[{"title":"Reduceri de primavara","descriptions":"Pana la -30%","image_pc":"https://api.volta.md/media/uploads/home-pc.jpg","image_mobile":"https://api.volta.md/media/uploads/home-mobile.jpg","button_is_active":true,"button_name":"Vezi ofertele","button_link":"/shop/product?type=discount","sort":1,"date_start":"2026-03-01T00:00:00Z","date_finish":"2026-03-31T23:59:59Z"}]
+
+GET /main/home-page-slider/{slideHomePage}
+Response example JSON:
+{"title":"Reduceri de primavara","descriptions":"Pana la -30%","image_pc":"https://api.volta.md/media/uploads/home-pc.jpg","image_mobile":"https://api.volta.md/media/uploads/home-mobile.jpg","button_is_active":true,"button_name":"Vezi ofertele","button_link":"/shop/product?type=discount","sort":1,"date_start":"2026-03-01T00:00:00Z","date_finish":"2026-03-31T23:59:59Z"}
+
+GET /main/slides-popular-product
+Response example JSON:
+[{"id":501,"name":"Televizor Samsung 55","slug":"televizor-samsung-55","model":"UE55DU7172","code":"TV-001","discount":0,"cashback":100,"price":"9999.00","promotion_price":"8999.00","is_active":true,"is_top":false,"product_gallery":[{"id":1,"product":501,"image":"https://api.volta.md/media/products/tv-1.jpg","image_order":1}],"label":[{"id":1,"name":"Top","font":"Inter","font_color":"#ffffff","bg_color":"#ff0000","sort":1,"url":null}],"is_stock":true,"measure":"buc","product_balance":[{"id":1,"product":501,"balance":3,"store":{"id":2,"name_in_1c":"BOT","name":"Volta Botanica","address":"bd. Decebal 99","map_link":"https://maps.google.com","sorted":1,"phone_mobile":"060000001","phone":"022000001"},"updated":"2026-03-03T10:00:00Z"}],"category":{"id":5,"name":"TV","guid":"cat-guid-5","slug":"tv"},"subcategory":{"id":8,"name":"Televizoare","guid":"sub-guid-8","slug":"televizoare"},"subsubcategory":{"id":11,"name":"Smart TV","guid":"ss-guid-11","slug":"smart-tv"}}]
+
+GET /main/slider-discounted-product
+Response example JSON:
+[{"id":1,"discount_product":{"id":501,"name":"Televizor Samsung 55","slug":"televizor-samsung-55","model":"UE55DU7172","code":"TV-001","discount":0,"cashback":100,"price":"9999.00","promotion_price":"8999.00","is_active":true,"is_top":false,"product_gallery":[{"id":1,"product":501,"image":"https://api.volta.md/media/products/tv-1.jpg","image_order":1}],"label":[],"is_stock":true,"measure":"buc","product_balance":[],"category":{"id":5,"name":"TV","guid":"cat-guid-5","slug":"tv"},"subcategory":{"id":8,"name":"Televizoare","guid":"sub-guid-8","slug":"televizoare"},"subsubcategory":{"id":11,"name":"Smart TV","guid":"ss-guid-11","slug":"smart-tv"}}}]
+
+GET /main/slider-discounted-product/{slideDiscounted}
+Response example JSON:
+{"id":1,"discount_product":{"id":501,"name":"Televizor Samsung 55","slug":"televizor-samsung-55","model":"UE55DU7172","code":"TV-001","discount":0,"cashback":100,"price":"9999.00","promotion_price":"8999.00","is_active":true,"is_top":false,"product_gallery":[{"id":1,"product":501,"image":"https://api.volta.md/media/products/tv-1.jpg","image_order":1}],"label":[],"is_stock":true,"measure":"buc","product_balance":[],"category":{"id":5,"name":"TV","guid":"cat-guid-5","slug":"tv"},"subcategory":{"id":8,"name":"Televizoare","guid":"sub-guid-8","slug":"televizoare"},"subsubcategory":{"id":11,"name":"Smart TV","guid":"ss-guid-11","slug":"smart-tv"}}}
+
+GET /main/slider-promotions
+Response example JSON:
+[{"id":1,"slug":"campanie-martie","title":"Campanie Martie","meta_title":"Campanie Martie","meta_description":"Promo martie","meta_image":"https://api.volta.md/media/promotions/meta.jpg","image_pc":"https://api.volta.md/media/promotions/pc.jpg","image_mobile":"https://api.volta.md/media/promotions/mobile.jpg","button_is_active":true,"button_for_promo_page_name":"Cumpara acum","button_for_promo_page_link":"/shop/product?type=discount","button_for_promo_page_is_active":true,"sort":1,"link_slide_promo":[{"name":"Regulament","link":"https://volta.md/regulament"}],"date_start":"2026-03-01T00:00:00Z","date_finish":"2026-03-31T23:59:59Z"}]
+
+GET /main/slider-promotions/{slug}
+Response example JSON:
+{"id":1,"slug":"campanie-martie","title":"Campanie Martie","description":"<p>Descriere campanie...</p>","image_pc":"https://api.volta.md/media/promotions/pc.jpg","image_mobile":"https://api.volta.md/media/promotions/mobile.jpg","button_is_active":true,"sort":1,"date_start":"2026-03-01T00:00:00Z","date_finish":"2026-03-31T23:59:59Z","slide_promo":[{"promo_product":{"id":501,"name":"Televizor Samsung 55","slug":"televizor-samsung-55","model":"UE55DU7172","code":"TV-001","discount":0,"cashback":100,"price":"9999.00","promotion_price":"8999.00","is_active":true,"is_top":false,"product_gallery":[],"label":[],"is_stock":true,"measure":"buc","product_balance":[],"category":{"id":5,"name":"TV","guid":"cat-guid-5","slug":"tv"},"subcategory":{"id":8,"name":"Televizoare","guid":"sub-guid-8","slug":"televizoare"},"subsubcategory":{"id":11,"name":"Smart TV","guid":"ss-guid-11","slug":"smart-tv"}},"is_active":true}],"link_slide_promo":[{"name":"Regulament","link":"https://volta.md/regulament"}],"button_for_promo_page_name":"Cumpara acum","button_for_promo_page_link":"/shop/product?type=discount","button_for_promo_page_is_active":true,"meta_title":"Campanie Martie","meta_description":"Promo martie","meta_image":"https://api.volta.md/media/promotions/meta.jpg"}
+
+GET /main/slider-new_products
+Response example JSON:
+[{"id":601,"name":"Laptop Lenovo","slug":"laptop-lenovo","model":"IdeaPad","code":"LP-001","discount":0,"cashback":150,"price":"14999.00","promotion_price":null,"is_active":true,"is_top":false,"product_gallery":[{"id":10,"product":601,"image":"https://api.volta.md/media/products/laptop.jpg","image_order":1}],"label":[{"id":2,"name":"Nou","font":"Inter","font_color":"#ffffff","bg_color":"#008000","sort":1,"url":null}],"is_stock":true,"measure":"buc","product_balance":[],"category":{"id":2,"name":"Laptopuri","guid":"cat-guid-2","slug":"laptopuri"},"subcategory":{"id":4,"name":"Ultrabook","guid":"sub-guid-4","slug":"ultrabook"},"subsubcategory":null}]
+
+GET /main/about-company
+Response example JSON:
+[{"id":1,"title":"Despre companie","description":"<p>Volta este...</p>","link":"https://volta.md","about_company_white_block":[{"title":"25 ani pe piata","image":"https://api.volta.md/media/about/block1.jpg","sorted":1}],"bottom_description_left":"<p>Text stanga</p>","bottom_description_right":"<p>Text dreapta</p>","meta_title":"Despre Volta","meta_description":"Informatii despre companie","meta_image":"https://api.volta.md/media/about/meta.jpg"}]
+
+GET /main/about-company/{aboutCompany}
+Response example JSON:
+{"id":1,"title":"Despre companie","description":"<p>Volta este...</p>","link":"https://volta.md","about_company_white_block":[{"title":"25 ani pe piata","image":"https://api.volta.md/media/about/block1.jpg","sorted":1}],"bottom_description_left":"<p>Text stanga</p>","bottom_description_right":"<p>Text dreapta</p>","meta_title":"Despre Volta","meta_description":"Informatii despre companie","meta_image":"https://api.volta.md/media/about/meta.jpg"}
+
+GET /main/delivery-page
+Response example JSON:
+[{"id":1,"title":"Livrare","image":"https://api.volta.md/media/delivery/top.jpg","description":"<p>Conditii livrare...</p>","text_info_red":"<p>Livrare gratuita peste 999 lei.</p>","text_footnotes":"<p>Note de subsol.</p>","button_name_first":"Magazine","button_link_first":"/main/get-shops","button_name_second":"Comanda","button_link_second":"/checkout","delivery_page_white_block":[{"title":"Livrare rapida","description":"<p>In 24h</p>","sorted":1}],"delivery_page_text_info":[{"description":"<p>Info suplimentara</p>","sorted":1}],"meta_title":"Livrare","meta_description":"Detalii livrare","meta_image":"https://api.volta.md/media/delivery/meta.jpg"}]
+
+GET /main/delivery-page/{deliveryPage}
+Response example JSON:
+{"id":1,"title":"Livrare","image":"https://api.volta.md/media/delivery/top.jpg","description":"<p>Conditii livrare...</p>","text_info_red":"<p>Livrare gratuita peste 999 lei.</p>","text_footnotes":"<p>Note de subsol.</p>","button_name_first":"Magazine","button_link_first":"/main/get-shops","button_name_second":"Comanda","button_link_second":"/checkout","delivery_page_white_block":[{"title":"Livrare rapida","description":"<p>In 24h</p>","sorted":1}],"delivery_page_text_info":[{"description":"<p>Info suplimentara</p>","sorted":1}],"meta_title":"Livrare","meta_description":"Detalii livrare","meta_image":"https://api.volta.md/media/delivery/meta.jpg"}
+
+GET /main/blog-category
+Response example JSON:
+[{"id":1,"name":"Noutati","slug":"noutati","posts":[{"id":5,"category_id":1,"slug":"noutate-tech","image_pc":"https://api.volta.md/media/blog/pc.jpg","image_mobile":"https://api.volta.md/media/blog/mobile.jpg","title":"Noutate tech","short_description":"Descriere scurta","description":"Text articol","date_creation":"2026-03-03T10:00:00Z","meta_title":"Noutate tech","meta_description":"Descriere meta","meta_image":"https://api.volta.md/media/blog/meta.jpg"}],"meta_title":"Noutati","meta_description":"Blog noutati","meta_image":"https://api.volta.md/media/blog/category-meta.jpg"}]
+
+GET /main/blog-category/{postCategory}
+Response example JSON:
+{"id":1,"name":"Noutati","slug":"noutati","posts":[{"id":5,"category_id":1,"slug":"noutate-tech","image_pc":"https://api.volta.md/media/blog/pc.jpg","image_mobile":"https://api.volta.md/media/blog/mobile.jpg","title":"Noutate tech","short_description":"Descriere scurta","description":"Text articol","date_creation":"2026-03-03T10:00:00Z","meta_title":"Noutate tech","meta_description":"Descriere meta","meta_image":"https://api.volta.md/media/blog/meta.jpg"}],"meta_title":"Noutati","meta_description":"Blog noutati","meta_image":"https://api.volta.md/media/blog/category-meta.jpg"}
+
+GET /main/blog
+Response example JSON:
+[{"category":1,"title":"Noutate tech","slug":"noutate-tech","description":"<p>Text articol...</p>","short_description":"Descriere scurta","image_pc":"https://api.volta.md/media/blog/pc.jpg","image_mobile":"https://api.volta.md/media/blog/mobile.jpg","date_creation":"2026-03-03T10:00:00Z","button_name":"Citeste","button_link":"/main/blog/noutate-tech","button_is_active":true,"meta_title":"Noutate tech","meta_description":"Descriere meta","meta_image":"https://api.volta.md/media/blog/meta.jpg","block_first_description":"Bloc 1","block_first_image":"https://api.volta.md/media/blog/b1.jpg","block_second_description":"Bloc 2","block_second_image":"https://api.volta.md/media/blog/b2.jpg","block_third_description":"Bloc 3","block_third_image":"https://api.volta.md/media/blog/b3.jpg"}]
+
+GET /main/blog/{slug}
+Response example JSON:
+{"category":1,"title":"Noutate tech","slug":"noutate-tech","description":"<p>Text articol...</p>","short_description":"Descriere scurta","image_pc":"https://api.volta.md/media/blog/pc.jpg","image_mobile":"https://api.volta.md/media/blog/mobile.jpg","date_creation":"2026-03-03T10:00:00Z","button_name":"Citeste","button_link":"/main/blog/noutate-tech","button_is_active":true,"meta_title":"Noutate tech","meta_description":"Descriere meta","meta_image":"https://api.volta.md/media/blog/meta.jpg","block_first_description":"Bloc 1","block_first_image":"https://api.volta.md/media/blog/b1.jpg","block_second_description":"Bloc 2","block_second_image":"https://api.volta.md/media/blog/b2.jpg","block_third_description":"Bloc 3","block_third_image":"https://api.volta.md/media/blog/b3.jpg"}
+
+GET /main/how-to-make-order
+Response example JSON:
+[{"title":"Cum faci comanda","description":"<p>Pasii de plasare a comenzii...</p>","image":"https://api.volta.md/media/order/howto.jpg","how_to_make_order_block":[{"title":"Alege produsul","description":"<p>Adauga in cos</p>","image":"https://api.volta.md/media/order/step1.jpg","sorted":1}],"text_for_white_block":"<p>Informatii suplimentare</p>","button_name":"Vezi produsele","button_link":"/shop/product","meta_title":"Cum faci comanda","meta_description":"Pasii de comanda","meta_image":"https://api.volta.md/media/order/meta.jpg"}]
+
+GET /main/how-to-make-order/{howToMakeOrder}
+Response example JSON:
+{"title":"Cum faci comanda","description":"<p>Pasii de plasare a comenzii...</p>","image":"https://api.volta.md/media/order/howto.jpg","how_to_make_order_block":[{"title":"Alege produsul","description":"<p>Adauga in cos</p>","image":"https://api.volta.md/media/order/step1.jpg","sorted":1}],"text_for_white_block":"<p>Informatii suplimentare</p>","button_name":"Vezi produsele","button_link":"/shop/product","meta_title":"Cum faci comanda","meta_description":"Pasii de comanda","meta_image":"https://api.volta.md/media/order/meta.jpg"}
+
+GET /main/payment-page
+Response example JSON:
+[{"title":"Modalitati de plata","description":"<p>Plata cash, card...</p>","image":"https://api.volta.md/media/payment/top.jpg","payment_page_block":[{"title":"Card online","description":"<p>Platesti securizat</p>","image":"https://api.volta.md/media/payment/card.jpg","sorted":1}],"text_for_white_block":"<p>Informatii utile</p>","button_name":"Comanda","button_link":"/checkout","meta_title":"Plata","meta_description":"Metode de plata","meta_image":"https://api.volta.md/media/payment/meta.jpg"}]
+
+GET /main/payment-page/{paymentPage}
+Response example JSON:
+{"title":"Modalitati de plata","description":"<p>Plata cash, card...</p>","image":"https://api.volta.md/media/payment/top.jpg","payment_page_block":[{"title":"Card online","description":"<p>Platesti securizat</p>","image":"https://api.volta.md/media/payment/card.jpg","sorted":1}],"text_for_white_block":"<p>Informatii utile</p>","button_name":"Comanda","button_link":"/checkout","meta_title":"Plata","meta_description":"Metode de plata","meta_image":"https://api.volta.md/media/payment/meta.jpg"}
+
+GET /main/guarantees-page
+Response example JSON:
+[{"title":"Garantii si retur","description":"<p>Conditii garantie...</p>","image":"https://api.volta.md/media/guarantee/top.jpg","text_for_white_block":"<p>Informatii importante</p>","guarantees_and_returns_block":[{"title":"Garantia produsului","description":"<p>24 luni</p>","image":"https://api.volta.md/media/guarantee/1.jpg","sorted":1}],"button_name":"Vezi produse","button_link":"/shop/product","meta_title":"Garantii","meta_description":"Garantii si retur","meta_image":"https://api.volta.md/media/guarantee/meta.jpg"}]
+
+GET /main/guarantees-page/{guaranteesPage}
+Response example JSON:
+{"title":"Garantii si retur","description":"<p>Conditii garantie...</p>","image":"https://api.volta.md/media/guarantee/top.jpg","text_for_white_block":"<p>Informatii importante</p>","guarantees_and_returns_block":[{"title":"Garantia produsului","description":"<p>24 luni</p>","image":"https://api.volta.md/media/guarantee/1.jpg","sorted":1}],"button_name":"Vezi produse","button_link":"/shop/product","meta_title":"Garantii","meta_description":"Garantii si retur","meta_image":"https://api.volta.md/media/guarantee/meta.jpg"}
+
+GET /main/gift_card-page
+Response example JSON:
+[{"title":"Card cadou","description":"<p>Ofera un cadou util.</p>","image":"https://api.volta.md/media/gift/top.jpg","text_for_white_block":"<p>Termeni card cadou</p>","gift_card_page_block":[{"title":"Valabilitate","description":"<p>12 luni</p>","image":"https://api.volta.md/media/gift/1.jpg","sorted":1}],"button_name":"Solicita","button_link":"/contacts","meta_title":"Card cadou","meta_description":"Detalii card cadou","meta_image":"https://api.volta.md/media/gift/meta.jpg"}]
+
+GET /main/gift_card-page/{giftCardPage}
+Response example JSON:
+{"title":"Card cadou","description":"<p>Ofera un cadou util.</p>","image":"https://api.volta.md/media/gift/top.jpg","text_for_white_block":"<p>Termeni card cadou</p>","gift_card_page_block":[{"title":"Valabilitate","description":"<p>12 luni</p>","image":"https://api.volta.md/media/gift/1.jpg","sorted":1}],"button_name":"Solicita","button_link":"/contacts","meta_title":"Card cadou","meta_description":"Detalii card cadou","meta_image":"https://api.volta.md/media/gift/meta.jpg"}
+
+GET /main/credit-page
+Response example JSON:
+[{"title":"Credit","description":"<p>Cum cumperi in credit.</p>","image":"https://api.volta.md/media/credit/top.jpg","credit_page_block":[{"title":"Conditii","description":"<p>Dobanda avantajoasa</p>","image":"https://api.volta.md/media/credit/1.jpg","sorted":1}],"text_for_white_block":"<p>Informatii suplimentare</p>","button_name":"Aplica","button_link":"/checkout","meta_title":"Credit","meta_description":"Cumpara in credit","meta_image":"https://api.volta.md/media/credit/meta.jpg"}]
+
+GET /main/credit-page/{creditPage}
+Response example JSON:
+{"title":"Credit","description":"<p>Cum cumperi in credit.</p>","image":"https://api.volta.md/media/credit/top.jpg","credit_page_block":[{"title":"Conditii","description":"<p>Dobanda avantajoasa</p>","image":"https://api.volta.md/media/credit/1.jpg","sorted":1}],"text_for_white_block":"<p>Informatii suplimentare</p>","button_name":"Aplica","button_link":"/checkout","meta_title":"Credit","meta_description":"Cumpara in credit","meta_image":"https://api.volta.md/media/credit/meta.jpg"}
+
+GET /main/cashback-page
+Response example JSON:
+[{"title":"Cashback","description":"<p>Castigi puncte la fiecare comanda.</p>","image":"https://api.volta.md/media/cashback/top.jpg","cashback_page_block":[{"title":"Cum functioneaza","description":"<p>1% cashback</p>","image":"https://api.volta.md/media/cashback/1.jpg","sorted":1}],"text_for_white_block":"<p>Regulament cashback</p>","button_name":"Cumpara","button_link":"/shop/product","meta_title":"Cashback","meta_description":"Program cashback","meta_image":"https://api.volta.md/media/cashback/meta.jpg"}]
+
+GET /main/cashback-page/{cashbackPage}
+Response example JSON:
+{"title":"Cashback","description":"<p>Castigi puncte la fiecare comanda.</p>","image":"https://api.volta.md/media/cashback/top.jpg","cashback_page_block":[{"title":"Cum functioneaza","description":"<p>1% cashback</p>","image":"https://api.volta.md/media/cashback/1.jpg","sorted":1}],"text_for_white_block":"<p>Regulament cashback</p>","button_name":"Cumpara","button_link":"/shop/product","meta_title":"Cashback","meta_description":"Program cashback","meta_image":"https://api.volta.md/media/cashback/meta.jpg"}
+
+GET /main/partner-page
+Response example JSON:
+[{"title":"Parteneri","title_first_block":"De ce Volta","description_first_block":"<p>Avantaje...</p>","title_second_block":"Conditii","description_second_block":"<p>Conditii colaborare...</p>","image":"https://api.volta.md/media/partner/top.jpg","partner_page_white_block":[{"title":"Suport dedicat","image":"https://api.volta.md/media/partner/1.jpg","sorted":1}],"meta_title":"Parteneri","meta_description":"Pagina parteneri","meta_image":"https://api.volta.md/media/partner/meta.jpg"}]
+
+GET /main/partner-page/{partnerPage}
+Response example JSON:
+{"title":"Parteneri","title_first_block":"De ce Volta","description_first_block":"<p>Avantaje...</p>","title_second_block":"Conditii","description_second_block":"<p>Conditii colaborare...</p>","image":"https://api.volta.md/media/partner/top.jpg","partner_page_white_block":[{"title":"Suport dedicat","image":"https://api.volta.md/media/partner/1.jpg","sorted":1}],"meta_title":"Parteneri","meta_description":"Pagina parteneri","meta_image":"https://api.volta.md/media/partner/meta.jpg"}
+
+GET /main/certificate
+Response example JSON:
+[{"title":"Certificate","description":"<p>Documente si certificate.</p>","certificates_page":[{"file":"https://api.volta.md/media/certificates/certificat.pdf","is_active":true}],"meta_title":"Certificate","meta_description":"Certificate Volta","meta_image":"https://api.volta.md/media/certificates/meta.jpg"}]
+
+GET /main/certificate/{certificatePage}
+Response example JSON:
+{"title":"Certificate","description":"<p>Documente si certificate.</p>","certificates_page":[{"file":"https://api.volta.md/media/certificates/certificat.pdf","is_active":true}],"meta_title":"Certificate","meta_description":"Certificate Volta","meta_image":"https://api.volta.md/media/certificates/meta.jpg"}
+
+GET /main/contacts
+Response example JSON:
+[{"id":1,"type":"shop","title":"Magazin Botanica","phone_mobile":"060000001","phone":"022000001","fax":"022000002","email":"botanica@volta.md","address":"bd. Decebal 99","work_schedule":"09:00-20:00","work_schedule_saturday":"09:00-18:00","work_schedule_sunday":"10:00-16:00","maps":"https://maps.google.com","maps_coordinates":"47.0105,28.8638","sorted":1,"is_active":true,"meta_title":"Contact Botanica","meta_description":"Date contact magazin","meta_image":"https://api.volta.md/media/contacts/meta.jpg"}]
+
+GET /main/contacts/{contact}
+Response example JSON:
+{"id":1,"type":"shop","title":"Magazin Botanica","phone_mobile":"060000001","phone":"022000001","fax":"022000002","email":"botanica@volta.md","address":"bd. Decebal 99","work_schedule":"09:00-20:00","work_schedule_saturday":"09:00-18:00","work_schedule_sunday":"10:00-16:00","maps":"https://maps.google.com","maps_coordinates":"47.0105,28.8638","sorted":1,"is_active":true,"meta_title":"Contact Botanica","meta_description":"Date contact magazin","meta_image":"https://api.volta.md/media/contacts/meta.jpg"}
+
+GET /main/requisites
+Response example JSON:
+[{"id":1,"company_name":"Volta SRL","legal_address":"Chisinau","physical_address":"Chisinau","c_f":"1000000000000","tva":"0200000","fax":"022000000","iban":"MD00VI222222222222222222","c_b":"VICBMD2X","bank":"Victoriabank","phone_mobile":"060000000","phone":"022000000","email":"office@volta.md","site":"https://volta.md","is_active":true}]
+
+GET /main/requisites/{requisites}
+Response example JSON:
+{"id":1,"company_name":"Volta SRL","legal_address":"Chisinau","physical_address":"Chisinau","c_f":"1000000000000","tva":"0200000","fax":"022000000","iban":"MD00VI222222222222222222","c_b":"VICBMD2X","bank":"Victoriabank","phone_mobile":"060000000","phone":"022000000","email":"office@volta.md","site":"https://volta.md","is_active":true}
+
+GET /main/vacancies
+Response example JSON:
+[{"id":1,"title":"Vacante","image":"https://api.volta.md/media/vacancy/top.jpg","vacancy_for_vacancy_page":[{"id":11,"title":"Consultant vanzari","description":"<p>Descriere job...</p>","sorted":1}],"meta_title":"Vacante Volta","meta_description":"Posturi disponibile","meta_image":"https://api.volta.md/media/vacancy/meta.jpg"}]
+
+GET /main/vacancies/{vacancyPage}
+Response example JSON:
+{"id":1,"title":"Vacante","image":"https://api.volta.md/media/vacancy/top.jpg","vacancy_for_vacancy_page":[{"id":11,"title":"Consultant vanzari","description":"<p>Descriere job...</p>","sorted":1}],"meta_title":"Vacante Volta","meta_description":"Posturi disponibile","meta_image":"https://api.volta.md/media/vacancy/meta.jpg"}
+
+GET /main/viewed-product
+Response example JSON:
+[{"id":1,"user":1,"product":{"id":501,"name":"Televizor Samsung 55","slug":"televizor-samsung-55","model":"UE55DU7172","discount":0,"cashback":100,"price":"9999.00","promotion_price":"8999.00","is_stock":true,"brand":{"id":3,"name":"Samsung","description":"Brand electronics","image":"https://api.volta.md/media/brands/samsung.png","slug":"samsung"},"category":5,"subcategory":8,"subsubcategory":11,"label":[],"rating":4.8,"product_gallery":[{"id":1,"product":501,"image":"https://api.volta.md/media/products/tv-1.jpg","image_order":1}]}}]
+
+POST /main/viewed-product
+Response example JSON:
+{"id":1,"user":1,"product":501}
+
+GET /main/viewed-product/{viewedProduct}
+Response example JSON:
+{"id":1,"user":1,"product":{"id":501,"name":"Televizor Samsung 55","slug":"televizor-samsung-55","model":"UE55DU7172","discount":0,"cashback":100,"price":"9999.00","promotion_price":"8999.00","is_stock":true,"brand":{"id":3,"name":"Samsung","description":"Brand electronics","image":"https://api.volta.md/media/brands/samsung.png","slug":"samsung"},"category":5,"subcategory":8,"subsubcategory":11,"label":[],"rating":4.8,"product_gallery":[{"id":1,"product":501,"image":"https://api.volta.md/media/products/tv-1.jpg","image_order":1}]}}
+
+GET /main/get-shops
+Response example JSON:
+[{"id":1,"address":"bd. Decebal 99","sorted":1}]
+
+GET /main/social-projects
+Response example JSON:
+[{"id":1,"title":"Volta pentru comunitate","slug":"volta-pentru-comunitate","description":"<p>Descriere proiect...</p>","short_description":"Ajutam comunitatea","image":"https://api.volta.md/media/social/project.jpg","button_name":"Detalii","button_link":"/main/social-projects/volta-pentru-comunitate","button_is_active":true,"date_creation":"2026-03-03T10:00:00Z","meta_title":"Volta pentru comunitate","meta_description":"Proiect social","meta_image":"https://api.volta.md/media/social/meta.jpg"}]
+
+GET /main/social-projects/{slug}
+Response example JSON:
+{"id":1,"title":"Volta pentru comunitate","slug":"volta-pentru-comunitate","description":"<p>Descriere proiect...</p>","short_description":"Ajutam comunitatea","image":"https://api.volta.md/media/social/project.jpg","button_name":"Detalii","button_link":"/main/social-projects/volta-pentru-comunitate","button_is_active":true,"date_creation":"2026-03-03T10:00:00Z","meta_title":"Volta pentru comunitate","meta_description":"Proiect social","meta_image":"https://api.volta.md/media/social/meta.jpg"}
+
+GET /main/get_meta_for_pages
+Response example JSON:
+[{"title":"Livrare","link":"/main/delivery-page","meta_title":"Livrare","meta_description":"Detalii livrare","meta_image":"https://api.volta.md/media/meta/delivery.jpg"}]
+
+GET /main/get_meta_for_pages/{metaForPage}
+Response example JSON:
+{"title":"Livrare","link":"/main/delivery-page","meta_title":"Livrare","meta_description":"Detalii livrare","meta_image":"https://api.volta.md/media/meta/delivery.jpg"}
+
+GET /main/subcategory-brand-banner
+Response example JSON:
+{"image_pc":"https://api.volta.md/media/banner/pc.jpg","image_mobile":"https://api.volta.md/media/banner/mobile.jpg","brand":{"attribute_value_id":12,"filter":"20_12","attribute_value__name":"Samsung"}}
+
+POST /main/add_views_to_product
+Response example JSON:
+[]
+
+GET /main/test
+Response example JSON:
+[]
+
+MOBILE APP
+
+POST /app/mobile/auth/login
+Response example JSON:
+{"auth_token":"mobile_admin_token_1234567890"}
+
+POST /app/mobile/auth/logout
+Response body:
+204 No Content
+
+GET /app/mobile/auth/me
+Response example JSON:
+{"id":1,"username":"admin","first_name":"Admin","last_name":"User","email":"admin@volta.md","profile":{"id":10,"name":"Admin","name_last":"User","salutation":null,"birth_date":null,"username":"admin","email":"admin@volta.md","phone":"060000000","country":"Moldova","city":"Chisinau","region":"Centru","address":"Str. Admin 1","cashback":0,"image":null,"company_name":null,"company_email":null,"type_company":null,"legal_address":null,"idno":null,"tva":null,"iban":null,"c_b":null,"bank":null}}
+
+GET /app/mobile/products
+Response example JSON:
+{"locale":"ro","generated_at":"2026-03-03T10:00:00Z","count":1200,"next":"https://api.volta.md/app/mobile/products?page=2","previous":null,"current_page":1,"total_pages":24,"page_size":50,"results":[{"id":501,"guid":"prod-guid-501","name":"Televizor Samsung 55","description":"Smart TV 4K","model":"UE55DU7172","code":"TV-001","measure":"buc","meta_description":"Televizor Samsung 55 Smart TV","price":"9999.00","promotion_price":"8999.00","discount":0,"cashback":100,"balance":3,"is_active":true,"is_stock":true,"is_top":false,"is_product_of_the_day":false,"date_creation":"2026-03-03T10:00:00Z","updated_at":"2026-03-03T10:10:00Z","image_url":"https://volta.md/media/products/tv-main.jpg","product_url":"https://volta.md/produs/televizor-samsung-55","brand":{"id":3,"name":"Samsung","description":"Brand electronics","slug":"samsung","image":"brands/samsung.png","image_url":"https://api.volta.md/media/brands/samsung.png"},"category":{"id":5,"name":"TV","slug":"tv","meta_description":"Categoria TV","search_content":"tv televizoare","icon_url":"https://api.volta.md/media/category/icon.png","image_url":"https://api.volta.md/media/category/image.png","labels":[],"descriptions":[],"faqs":[]},"subcategory":{"id":8,"name":"Televizoare","slug":"televizoare","meta_description":"Subcategoria TV","search_content":"smart tv","image_url":"https://api.volta.md/media/subcategory/image.png","labels":[],"descriptions":[],"faqs":[]},"subsubcategory":{"id":11,"name":"Smart TV","slug":"smart-tv","meta_description":"Smart TV","search_content":"oled qled","image_url":"https://api.volta.md/media/subsubcategory/image.png","labels":[],"descriptions":[],"faqs":[]},"labels":[{"id":1,"name":"Top","url":null}],"product_gallery":[{"id":1,"product_id":501,"image":"products/tv-1.jpg","image_order":1,"image_url":"https://api.volta.md/media/products/tv-1.jpg"}],"product_balance":[{"id":1,"product_id":501,"store_id":2,"balance":3,"updated":"2026-03-03T10:00:00Z","store":{"id":2,"name":"Volta Botanica","address":"bd. Decebal 99","shop":{"id":1,"address":"bd. Decebal 99"}}}],"product_attributes":[{"id":1,"product_id":501,"attribute_name_id":20,"attribute_value_id":12,"filter":"20_12","attribute_name":{"id":20,"name":"Brand"},"attribute_value":{"id":12,"name":"Samsung"}}],"reviews":[{"id":1,"product_id":501,"name":"Ion","avatar":"avatars/ion.png","avatar_url":"https://api.volta.md/media/avatars/ion.png","specialization":"Client","email":"ion@example.com","text":"Produs bun","stars":5,"is_active":true,"date_creation":"2026-03-03T09:00:00Z"}],"product_accessories":[{"id":1,"product_id":501,"accessory_id":502,"accessory":{"id":502,"guid":"prod-guid-502","name":"Suport TV","description":"Suport perete","model":"SUP-1","code":"ACC-001","measure":"buc","meta_description":"Suport TV","price":"599.00","promotion_price":null,"discount":0,"cashback":10,"balance":20,"is_active":true,"is_stock":true,"is_top":false,"is_product_of_the_day":false,"date_creation":"2026-03-03T10:00:00Z","updated_at":"2026-03-03T10:10:00Z","image_url":"https://volta.md/media/products/support.jpg","product_url":"https://volta.md/produs/suport-tv","brand":null,"category":null,"subcategory":null,"subsubcategory":null,"labels":[],"product_gallery":[],"product_balance":[],"product_attributes":[]}}}]}
+
+GET /app/mobile/discount-cards
+Response example JSON:
+{"locale":"ro","generated_at":"2026-03-03T10:00:00Z","count":2,"next":null,"previous":null,"current_page":1,"total_pages":1,"page_size":50,"results":[{"id":1,"user_profile_id":10,"user_profile":10,"code":"CARD-001","barcode":"BC-12345","max_discount_percent":12,"cashback_percent":2.5,"card_owner":"Ion Popescu","card_owner_phone":"69796349","card_type":"Standard","bonus_type":"cashback","created_at":"2026-03-03T10:00:00Z"}]}
+
+GET /app/mobile/user/discount-cards
+Response example JSON:
+{"locale":"ro","generated_at":"2026-03-03T10:00:00Z","count":1,"next":null,"previous":null,"current_page":1,"total_pages":1,"page_size":50,"results":[{"user":{"id":1,"username":"ion.popescu","first_name":"Ion","last_name":"Popescu","email":"ion@example.com","is_active":true,"is_staff":false,"is_superuser":false,"last_login":"2026-03-03T09:00:00Z","date_joined":"2026-01-10T12:00:00Z"},"profile":{"id":10,"user_id":1,"name":"Ion","name_last":"Popescu","salutation":"Dl","birth_date":"1990-05-12","username":"ion.popescu","email":"ion@example.com","phone":"060000000","country":"Moldova","city":"Chisinau","region":"Centru","address":"Str. Exemplu 1","cashback":120,"image":"images/profile.jpg","company_name":"Volta SRL","company_email":"office@example.com","type_company":"SRL","legal_address":"Chisinau","idno":"1000000000000","tva":"0200000","iban":"MD00VI222222222222222222","c_b":"VICBMD2X","bank":"Victoriabank","status":"active","facebook_id":null,"date_creation":"2026-01-10T12:00:00Z","updated_on":"2026-03-03T09:00:00Z"},"discount_cards":[{"id":1,"user_profile_id":10,"user_profile":10,"code":"CARD-001","barcode":"BC-12345","max_discount_percent":12,"cashback_percent":2.5,"card_owner":"Ion Popescu","card_owner_phone":"69796349","card_type":"Standard","bonus_type":"cashback","created_at":"2026-03-03T10:00:00Z"}]}]}
+
+SHOP
+
+GET /shop/category-in-home_page
+Response example JSON:
+[{"id":5,"name":"TV","icon":"https://api.volta.md/media/category/icon.png","image":"https://api.volta.md/media/category/image.png","slug":"tv","is_active":true,"sort":1,"category_in_subcategory":[{"id":8,"name":"Televizoare","image":"https://api.volta.md/media/subcategory/image.png","slug":"televizoare","is_active":true,"sort":1,"subsubcategory_in_subcategory":[{"id":11,"name":"Smart TV","image":"https://api.volta.md/media/subsubcategory/image.png","slug":"smart-tv","is_active":true,"sort":1,"label":[],"meta_description":"Smart TV","keyword":"smart,tv"}],"label":[],"meta_description":"Televizoare","keyword":"tv"}],"label":[],"meta_description":"Categoria TV","keyword":"tv"}]
+
+GET /shop/category-in-home_page/{slug}
+Response example JSON:
+{"id":5,"name":"TV","icon":"https://api.volta.md/media/category/icon.png","image":"https://api.volta.md/media/category/image.png","slug":"tv","is_active":true,"sort":1,"category_in_subcategory":[{"id":8,"name":"Televizoare","image":"https://api.volta.md/media/subcategory/image.png","slug":"televizoare","is_active":true,"sort":1,"subsubcategory_in_subcategory":[{"id":11,"name":"Smart TV","image":"https://api.volta.md/media/subsubcategory/image.png","slug":"smart-tv","is_active":true,"sort":1,"label":[],"meta_description":"Smart TV","keyword":"smart,tv"}],"label":[],"meta_description":"Televizoare","subcategory_description":[{"title":"Despre subcategorie","description":"<p>Text...</p>"}],"subcategory_faq":[{"question_title":"Intrebare","question":"Cum aleg?","answer":"Compari specificatiile."}],"most_popular_products":5,"cheapest_products":3}],"label":[],"meta_description":"Categoria TV"}
+
+GET /shop/subcategory
+Response example JSON:
+[{"id":8,"name":"Televizoare","image":"https://api.volta.md/media/subcategory/image.png","slug":"televizoare","is_active":true,"sort":1,"subsubcategory_in_subcategory":[{"id":11,"name":"Smart TV","image":"https://api.volta.md/media/subsubcategory/image.png","slug":"smart-tv","is_active":true,"sort":1,"label":[],"meta_description":"Smart TV","keyword":"smart,tv"}],"label":[],"meta_description":"Televizoare","keyword":"tv"}]
+
+GET /shop/subcategory/{slug}
+Response example JSON:
+{"id":8,"name":"Televizoare","image":"https://api.volta.md/media/subcategory/image.png","slug":"televizoare","is_active":true,"sort":1,"subsubcategory_in_subcategory":[{"id":11,"name":"Smart TV","image":"https://api.volta.md/media/subsubcategory/image.png","slug":"smart-tv","is_active":true,"sort":1,"label":[],"meta_description":"Smart TV","keyword":"smart,tv"}],"label":[],"meta_description":"Televizoare","subcategory_description":[{"title":"Despre subcategorie","description":"<p>Text...</p>"}],"subcategory_faq":[{"question_title":"Intrebare","question":"Cum aleg?","answer":"Compari specificatiile."}],"most_popular_products":5,"cheapest_products":3}
+
+GET /shop/subsubcategory
+Response example JSON:
+[{"id":11,"name":"Smart TV","image":"https://api.volta.md/media/subsubcategory/image.png","slug":"smart-tv","is_active":true,"sort":1,"label":[],"meta_description":"Smart TV","keyword":"smart,tv"}]
+
+GET /shop/subsubcategory/{slug}
+Response example JSON:
+{"id":11,"name":"Smart TV","image":"https://api.volta.md/media/subsubcategory/image.png","slug":"smart-tv","is_active":true,"sort":1,"label":[],"meta_description":"Smart TV","subsubcategory_description":[{"title":"Despre Smart TV","description":"<p>Text...</p>"}],"subsubcategory_faq":[{"question_title":"Intrebare","question":"Ce inseamna Smart TV?","answer":"TV cu aplicatii."}],"most_popular_products":7,"cheapest_products":2}
+
+GET /shop/product
+Response example JSON:
+{"products":{"count":1200,"next":"https://api.volta.md/shop/product?page=2","previous":null,"results":[{"id":501,"name":"Televizor Samsung 55","slug":"televizor-samsung-55","model":"UE55DU7172","code":"TV-001","discount":0,"cashback":100,"price":"9999.00","promotion_price":"8999.00","is_stock":true,"balance":3,"stores":[{"store__id":2,"store__sorted":1,"store__name":"Volta Botanica","store__address":"bd. Decebal 99","balance":3}],"is_top":false,"date_creation":"2026-03-03T10:00:00Z","price_and_stock_update_time":"2026-03-03T10:05:00Z","updated_at":"2026-03-03T10:10:00Z","label":[{"id":1,"name":"Top","font":"Inter","font_color":"#ffffff","bg_color":"#ff0000","sort":1,"url":null}],"rating":4.8,"product_gallery":[{"id":1,"product":501,"image":"https://api.volta.md/media/products/tv-1.jpg","image_order":1}],"is_product_of_the_day":false,"guid":"prod-guid-501","max_discount_percent":10,"product_balance":[{"id":1,"product":501,"balance":3,"store":{"id":2,"name_in_1c":"BOT","name":"Volta Botanica","address":"bd. Decebal 99","map_link":"https://maps.google.com","sorted":1,"phone_mobile":"060000001","phone":"022000001"},"updated":"2026-03-03T10:00:00Z"}],"measure":"buc","category":{"id":5,"name":"TV","guid":"cat-guid-5","slug":"tv"},"subcategory":{"id":8,"name":"Televizoare","guid":"sub-guid-8","slug":"televizoare"},"subsubcategory":{"id":11,"name":"Smart TV","guid":"ss-guid-11","slug":"smart-tv"}}]},"sub_sub_category":[{"subsubcategory_id":11,"subsubcategory__name_ro":"Smart TV"}],"sub_category":[{"subcategory_id":8,"subcategory__name_ro":"Televizoare"}],"brand":[{"brand_id":3,"brand__name_ro":"Samsung"}],"min_price":"2999.00","max_price":"25999.00","search_suggestions":["samsung tv","smart tv"],"search_corrected_term":null}
+
+GET /shop/product-autosuggest
+Response example JSON:
+{"query":"televizor","products_count":2,"products":[{"id":501,"name":"Televizor Samsung 55","slug":"televizor-samsung-55","price":"9999.00","product_gallery":[{"id":1,"product":501,"image":"https://api.volta.md/media/products/tv-1.jpg","image_order":1}]}],"search_suggestions":["televizor samsung","televizor lg"],"search_corrected_term":null}
+
+GET /shop/product/attributes
+Response example JSON:
+{"filters":[{"key_id":"Categorie","key_name":"Categorie","values":[{"attribute_value_id":5,"attribute_value__name":"TV","filter":"category_5","selected":false,"count":24,"available":true}]},{"attribute_name_id":20,"key_id":"Brand","key_name":"Brand","key_sort":1,"values":[{"attribute_value_id":12,"attribute_value__name":"Samsung","filter":"20_12","selected":false,"count":12,"available":true}]},{"key_id":"store","key_name":"Magazine","values":[{"attribute_value_id":2,"attribute_value__name":"Volta Botanica","filter":"store_2","selected":false,"sort":1,"count":8,"available":true}]}],"min_price":"2999.00","max_price":"25999.00"}
+
+GET /shop/product-search
+Response example JSON:
+{"count":2,"next":null,"previous":null,"results":[{"id":501,"name":"Televizor Samsung 55","slug":"televizor-samsung-55","price":"9999.00","product_gallery":[{"id":1,"product":501,"image":"https://api.volta.md/media/products/tv-1.jpg","image_order":1}]}],"search_suggestions":["televizor samsung","televizor lg"],"search_corrected_term":null}
+
+GET /shop/product-search-list
+Response example JSON:
+{"count":2,"next":null,"previous":null,"results":[{"id":501,"name":"Televizor Samsung 55","slug":"televizor-samsung-55","price":"9999.00","promotion_price":"8999.00","cashback":100,"code":"TV-001","label":[1,2],"is_stock":true,"balance":3,"product_gallery":[{"id":1,"product":501,"image":"https://api.volta.md/media/products/tv-1.jpg","image_order":1}]}],"min_price":"2999.00","max_price":"25999.00","sub_sub_category":[{"subsubcategory_id":11,"subsubcategory__name_ro":"Smart TV"}],"sub_category":[{"subcategory_id":8,"subcategory__name_ro":"Televizoare"}],"brands":[{"brand_id":3,"brand__name_ro":"Samsung"}],"search_suggestions":["televizor samsung"],"search_corrected_term":null}
+
+GET /shop/product/{slug}
+Response example JSON:
+{"id":501,"name":"Televizor Samsung 55","slug":"televizor-samsung-55","model":"UE55DU7172","code":"TV-001","description":"Smart TV 4K","discount":0,"cashback":100,"price":"9999.00","promotion_price":"8999.00","is_stock":true,"balance":3,"stores":[{"store__id":2,"store__sorted":1,"store__name":"Volta Botanica","store__address":"bd. Decebal 99","balance":3}],"is_active":true,"is_top":false,"date_creation":"2026-03-03T10:00:00Z","updated_at":"2026-03-03T10:10:00Z","price_and_stock_update_time":"2026-03-03T10:05:00Z","brand":{"id":3,"name":"Samsung","description":"Brand electronics","image":"https://api.volta.md/media/brands/samsung.png","slug":"samsung"},"category":{"id":5,"name":"TV","guid":"cat-guid-5","slug":"tv"},"subcategory":{"id":8,"name":"Televizoare","guid":"sub-guid-8","slug":"televizoare"},"subsubcategory":{"id":11,"name":"Smart TV","guid":"ss-guid-11","slug":"smart-tv"},"reviews":[{"id":1,"product":501,"name":"Ion","avatar":"https://api.volta.md/media/avatars/ion.png","specialization":"Client","email":"ion@example.com","text":"Produs bun","stars":5,"is_active":true,"date_creation":"2026-03-03T09:00:00Z"}],"rating":4.8,"measure":"buc","product_attributes":[{"propetry_name":{"id":20,"name":"Brand"},"propetry_values":[{"attribute_value_id":12,"attribute_value__name":"Samsung"}],"is_general":true}],"similar_products":[{"product":{"id":502,"code":"TV-002","name":"Televizor LG 55","slug":"televizor-lg-55","brand":{"id":4,"name":"LG"},"price":"9499.00","promotion_price":"8799.00","is_stock":true,"product_gallery":[],"description":"Model similar","label":[]}}],"product_gallery":[{"id":1,"product":501,"image":"https://api.volta.md/media/products/tv-1.jpg","image_order":1}],"is_product_of_the_day":false,"guid":"prod-guid-501","product_balance":[{"id":1,"product":501,"balance":3,"store":{"id":2,"name_in_1c":"BOT","name":"Volta Botanica","address":"bd. Decebal 99","map_link":"https://maps.google.com","sorted":1,"phone_mobile":"060000001","phone":"022000001"},"updated":"2026-03-03T10:00:00Z"}],"max_discount_percent":10,"meta_description":"Televizor Samsung 55 Smart TV","product_accessory":[{"accessory":{"id":503,"name":"Suport TV","slug":"suport-tv","model":"SUP-1","code":"ACC-001","discount":0,"cashback":10,"price":"599.00","promotion_price":null,"is_active":true,"is_top":false,"product_gallery":[],"label":[],"is_stock":true,"measure":"buc","product_balance":[],"category":null,"subcategory":null,"subsubcategory":null}}],"label":[{"id":1,"name":"Top","font":"Inter","font_color":"#ffffff","bg_color":"#ff0000","sort":1,"url":null}]}
+
+POST /shop/promocode
+Response example JSON:
+{"id":1,"coupon_uid":"promo-001","coupon_code":"SPRING10","description":"Reducere 10%","discount_type":"percent","coupon_amount":10,"allow_free_shipping":false,"coupon_start_date":"2026-03-01","coupon_expiry_date":"2026-03-31","minimum_spend":500,"maximum_spend":50000,"individual_use_only":false,"exclude_sale_items":false,"products":"501,502","exclude_products":"","product_categories":"5","exclude_categories":"","email_restrictions":"ion@example.com","usage_limit_per_coupon":100,"usage_limit_per_user":1,"date_creation":"2026-03-03T10:00:00Z"}
+
+GET /shop/brand
+Response example JSON:
+[{"id":3,"name":"Samsung","description":"Brand electronics","image":"https://api.volta.md/media/brands/samsung.png","slug":"samsung"}]
+
+GET /shop/brand/{slug}
+Response example JSON:
+{"id":3,"name":"Samsung","description":"Brand electronics","image":"https://api.volta.md/media/brands/samsung.png","slug":"samsung","products":[{"id":501,"name":"Televizor Samsung 55","slug":"televizor-samsung-55","price":"9999.00"}]}
+
+GET /shop/get-stores
+Response example JSON:
+[{"id":2,"name_in_1c":"BOT","name":"Volta Botanica","address":"bd. Decebal 99","map_link":"https://maps.google.com","sorted":1,"phone_mobile":"060000001","phone":"022000001"}]
+
+GET /shop/favorite-products
+Response example JSON:
+[{"id":1,"user":1,"product":{"id":501,"name":"Televizor Samsung 55","slug":"televizor-samsung-55","model":"UE55DU7172","code":"TV-001","discount":0,"cashback":100,"price":"9999.00","promotion_price":"8999.00","is_active":true,"is_top":false,"product_gallery":[{"id":1,"product":501,"image":"https://api.volta.md/media/products/tv-1.jpg","image_order":1}],"label":[],"is_stock":true,"measure":"buc","product_balance":[],"category":{"id":5,"name":"TV","guid":"cat-guid-5","slug":"tv"},"subcategory":{"id":8,"name":"Televizoare","guid":"sub-guid-8","slug":"televizoare"},"subsubcategory":{"id":11,"name":"Smart TV","guid":"ss-guid-11","slug":"smart-tv"}}}]
+
+POST /shop/favorite-products
+Response example JSON:
+{"id":1,"user":1,"product":{"id":501,"name":"Televizor Samsung 55","slug":"televizor-samsung-55","model":"UE55DU7172","code":"TV-001","discount":0,"cashback":100,"price":"9999.00","promotion_price":"8999.00","is_active":true,"is_top":false,"product_gallery":[{"id":1,"product":501,"image":"https://api.volta.md/media/products/tv-1.jpg","image_order":1}],"label":[],"is_stock":true,"measure":"buc","product_balance":[],"category":{"id":5,"name":"TV","guid":"cat-guid-5","slug":"tv"},"subcategory":{"id":8,"name":"Televizoare","guid":"sub-guid-8","slug":"televizoare"},"subsubcategory":{"id":11,"name":"Smart TV","guid":"ss-guid-11","slug":"smart-tv"}}}
+
+DELETE /shop/favorite-products/{favoriteProduct}
+Response body:
+204 No Content
+
+GET /shop/favorite-products-delete-all
+Response example JSON:
+[]
+
+GET /shop/reviews
+Response example JSON:
+[{"id":1,"product":501,"name":"Ion","avatar":"https://api.volta.md/media/avatars/ion.png","specialization":"Client","email":"ion@example.com","text":"Produs bun","stars":5,"is_active":true,"date_creation":"2026-03-03T09:00:00Z"}]
+
+POST /shop/reviews
+Response example JSON:
+{"id":1,"product":501,"name":"Ion","avatar":"https://api.volta.md/media/avatars/ion.png","specialization":"Client","email":"ion@example.com","text":"Produs bun","stars":5,"is_active":false,"date_creation":"2026-03-03T09:00:00Z"}
+
+GET /shop/change-diacritic
+Response example JSON:
+{"status":"ok","updated":15432}
+
+GET /shop/run_update_products
+Response body:
+Plain text: "Products updating started successfully."
+
+GET /shop/run_update_products_available_balance_night
+Response body:
+Plain text: "Products balance updating started successfully."
+
+ORDERS
+
+GET /orders/temporary-cart
+Response example JSON:
+[{"id":1,"user":1,"product":{"id":501,"name":"Televizor Samsung 55","slug":"televizor-samsung-55","model":"UE55DU7172","description":"Smart TV 4K","guid":"prod-guid-501","code":"TV-001","measure":"buc","balance":3,"is_top":false,"max_discount_percent":10,"discount":0,"cashback":100,"price":"9999.00","promotion_price":"8999.00","is_stock":true,"date_creation":"2026-03-03T10:00:00Z","brand":{"id":3,"name":"Samsung","description":"Brand electronics","image":"https://api.volta.md/media/brands/samsung.png","slug":"samsung"},"category":{"id":5,"name":"TV","guid":"cat-guid-5","slug":"tv"},"subcategory":{"id":8,"name":"Televizoare","guid":"sub-guid-8","slug":"televizoare"},"subsubcategory":{"id":11,"name":"Smart TV","guid":"ss-guid-11","slug":"smart-tv"},"label":[],"product_gallery":[{"id":1,"product":501,"image":"https://api.volta.md/media/products/tv-1.jpg","image_order":1}],"product_balance":[{"id":1,"product":501,"balance":3,"store":{"id":2,"name_in_1c":"BOT","name":"Volta Botanica","address":"bd. Decebal 99","map_link":"https://maps.google.com","sorted":1,"phone_mobile":"060000001","phone":"022000001"},"updated":"2026-03-03T10:00:00Z"}]},"quantity":1,"auto_discount_percent":5,"auto_discount_applied_at":"2026-03-03T09:50:00Z","auto_discount_expires_at":"2026-03-03T10:20:00Z","auto_discount_notified_at":null,"auto_discount_active":true,"cart_promotion_price":"9499.05"}]
+
+POST /orders/temporary-cart
+Response example JSON:
+[]
+
+GET /orders/temporary-cart/{temporaryCart}
+Response example JSON:
+{"id":1,"user":1,"product":{"id":501,"name":"Televizor Samsung 55","slug":"televizor-samsung-55","model":"UE55DU7172","description":"Smart TV 4K","guid":"prod-guid-501","code":"TV-001","measure":"buc","balance":3,"is_top":false,"max_discount_percent":10,"discount":0,"cashback":100,"price":"9999.00","promotion_price":"8999.00","is_stock":true,"date_creation":"2026-03-03T10:00:00Z","brand":{"id":3,"name":"Samsung","description":"Brand electronics","image":"https://api.volta.md/media/brands/samsung.png","slug":"samsung"},"category":{"id":5,"name":"TV","guid":"cat-guid-5","slug":"tv"},"subcategory":{"id":8,"name":"Televizoare","guid":"sub-guid-8","slug":"televizoare"},"subsubcategory":{"id":11,"name":"Smart TV","guid":"ss-guid-11","slug":"smart-tv"},"label":[],"product_gallery":[{"id":1,"product":501,"image":"https://api.volta.md/media/products/tv-1.jpg","image_order":1}],"product_balance":[{"id":1,"product":501,"balance":3,"store":{"id":2,"name_in_1c":"BOT","name":"Volta Botanica","address":"bd. Decebal 99","map_link":"https://maps.google.com","sorted":1,"phone_mobile":"060000001","phone":"022000001"},"updated":"2026-03-03T10:00:00Z"}]},"quantity":1,"auto_discount_percent":5,"auto_discount_applied_at":"2026-03-03T09:50:00Z","auto_discount_expires_at":"2026-03-03T10:20:00Z","auto_discount_notified_at":null,"auto_discount_active":true,"cart_promotion_price":"9499.05"}
+
+PUT/PATCH /orders/temporary-cart/{temporaryCart}
+Response example JSON:
+{"id":1,"user":1,"product":{"id":501,"name":"Televizor Samsung 55","slug":"televizor-samsung-55","model":"UE55DU7172","description":"Smart TV 4K","guid":"prod-guid-501","code":"TV-001","measure":"buc","balance":3,"is_top":false,"max_discount_percent":10,"discount":0,"cashback":100,"price":"9999.00","promotion_price":"8999.00","is_stock":true,"date_creation":"2026-03-03T10:00:00Z","brand":{"id":3,"name":"Samsung","description":"Brand electronics","image":"https://api.volta.md/media/brands/samsung.png","slug":"samsung"},"category":{"id":5,"name":"TV","guid":"cat-guid-5","slug":"tv"},"subcategory":{"id":8,"name":"Televizoare","guid":"sub-guid-8","slug":"televizoare"},"subsubcategory":{"id":11,"name":"Smart TV","guid":"ss-guid-11","slug":"smart-tv"},"label":[],"product_gallery":[{"id":1,"product":501,"image":"https://api.volta.md/media/products/tv-1.jpg","image_order":1}],"product_balance":[{"id":1,"product":501,"balance":3,"store":{"id":2,"name_in_1c":"BOT","name":"Volta Botanica","address":"bd. Decebal 99","map_link":"https://maps.google.com","sorted":1,"phone_mobile":"060000001","phone":"022000001"},"updated":"2026-03-03T10:00:00Z"}]},"quantity":2,"auto_discount_percent":5,"auto_discount_applied_at":"2026-03-03T09:50:00Z","auto_discount_expires_at":"2026-03-03T10:20:00Z","auto_discount_notified_at":null,"auto_discount_active":true,"cart_promotion_price":"9499.05"}
+
+DELETE /orders/temporary-cart/{temporaryCart}
+Response body:
+204 No Content
+
+GET /orders/cart-delete-all
+Response example JSON:
+[]
+
+GET /orders/orders
+Response example JSON:
+[{"id":101,"user":1,"name":"Ion Popescu","delivery_type":"courier","pay_method":"cash","address":"Str. Exemplu 1","comment":"Sunati inainte de livrare.","phone":"060000000","credit_period":"","monthly_payments":"","promo_code":"SPRING10","discount_card":"CARD-001","cashback":100,"total_price":"9999.00","city":"Chisinau","suburb":"Centru","email":"ion@example.com","company":"Volta SRL","pickup_address":{"id":1,"sorted":1,"address":"bd. Decebal 99"},"cost_of_delivery":"0.00","total_discount":"1000.00","status":"new_order","created_at":"2026-03-03T10:00:00Z","updated_at":"2026-03-03T10:05:00Z","order_products":[{"product":{"id":501,"name":"Televizor Samsung 55","slug":"televizor-samsung-55","model":"UE55DU7172","description":"Smart TV 4K","guid":"prod-guid-501","code":"TV-001","measure":"buc","balance":3,"is_top":false,"max_discount_percent":10,"discount":0,"cashback":100,"price":"9999.00","promotion_price":"8999.00","is_stock":true,"date_creation":"2026-03-03T10:00:00Z","brand":{"id":3,"name":"Samsung","description":"Brand electronics","image":"https://api.volta.md/media/brands/samsung.png","slug":"samsung"},"category":{"id":5,"name":"TV","guid":"cat-guid-5","slug":"tv"},"subcategory":{"id":8,"name":"Televizoare","guid":"sub-guid-8","slug":"televizoare"},"subsubcategory":{"id":11,"name":"Smart TV","guid":"ss-guid-11","slug":"smart-tv"},"label":[],"product_gallery":[{"id":1,"product":501,"image":"https://api.volta.md/media/products/tv-1.jpg","image_order":1}],"product_balance":[{"id":1,"product":501,"balance":3,"store":{"id":2,"name_in_1c":"BOT","name":"Volta Botanica","address":"bd. Decebal 99","map_link":"https://maps.google.com","sorted":1,"phone_mobile":"060000001","phone":"022000001"},"updated":"2026-03-03T10:00:00Z"}]},"quantity":1,"unit_price":"9999.00","discount":"0.00","promo_discount":"1000.00","total_price":"8999.00"}],"lang":"ro","use_cashback":false,"transaction_id":"123456789","iban":null,"birth_date":null,"iute_credit_status":null,"iute_credit_session_id":null,"notes":null}]
+
+POST /orders/orders
+Response example JSON:
+{"id":101,"user":1,"name":"Ion Popescu","delivery_type":"courier","pay_method":"cash","address":"Str. Exemplu 1","comment":"Sunati inainte de livrare.","phone":"060000000","credit_period":"","monthly_payments":"","promo_code":"SPRING10","discount_card":"CARD-001","cashback":100,"total_price":"9999.00","city":"Chisinau","suburb":"Centru","email":"ion@example.com","company":"Volta SRL","pickup_address":{"id":1,"sorted":1,"address":"bd. Decebal 99"},"cost_of_delivery":"0.00","total_discount":"1000.00","status":"new_order","created_at":"2026-03-03T10:00:00Z","updated_at":"2026-03-03T10:05:00Z","order_products":[{"product":{"id":501,"name":"Televizor Samsung 55","slug":"televizor-samsung-55","model":"UE55DU7172","description":"Smart TV 4K","guid":"prod-guid-501","code":"TV-001","measure":"buc","balance":3,"is_top":false,"max_discount_percent":10,"discount":0,"cashback":100,"price":"9999.00","promotion_price":"8999.00","is_stock":true,"date_creation":"2026-03-03T10:00:00Z","brand":{"id":3,"name":"Samsung","description":"Brand electronics","image":"https://api.volta.md/media/brands/samsung.png","slug":"samsung"},"category":{"id":5,"name":"TV","guid":"cat-guid-5","slug":"tv"},"subcategory":{"id":8,"name":"Televizoare","guid":"sub-guid-8","slug":"televizoare"},"subsubcategory":{"id":11,"name":"Smart TV","guid":"ss-guid-11","slug":"smart-tv"},"label":[],"product_gallery":[{"id":1,"product":501,"image":"https://api.volta.md/media/products/tv-1.jpg","image_order":1}],"product_balance":[{"id":1,"product":501,"balance":3,"store":{"id":2,"name_in_1c":"BOT","name":"Volta Botanica","address":"bd. Decebal 99","map_link":"https://maps.google.com","sorted":1,"phone_mobile":"060000001","phone":"022000001"},"updated":"2026-03-03T10:00:00Z"}]},"quantity":1,"unit_price":"9999.00","discount":"0.00","promo_discount":"1000.00","total_price":"8999.00"}],"lang":"ro","use_cashback":false,"transaction_id":"123456789","iban":null,"birth_date":null,"iute_credit_status":null,"iute_credit_session_id":null,"notes":null}
+
+POST /orders/orders/get-transaction-id
+Response example JSON:
+{"TRANSACTION_ID":"852741963","ip":"127.0.0.1"}
+
+GET /orders/orders/{order}
+Response example JSON:
+{"id":101,"user":1,"name":"Ion Popescu","delivery_type":"courier","pay_method":"cash","address":"Str. Exemplu 1","comment":"Sunati inainte de livrare.","phone":"060000000","credit_period":"","monthly_payments":"","promo_code":"SPRING10","discount_card":"CARD-001","cashback":100,"total_price":"9999.00","city":"Chisinau","suburb":"Centru","email":"ion@example.com","company":"Volta SRL","pickup_address":{"id":1,"sorted":1,"address":"bd. Decebal 99"},"cost_of_delivery":"0.00","total_discount":"1000.00","status":"new_order","created_at":"2026-03-03T10:00:00Z","updated_at":"2026-03-03T10:05:00Z","order_products":[{"product":{"id":501,"name":"Televizor Samsung 55","slug":"televizor-samsung-55","model":"UE55DU7172","description":"Smart TV 4K","guid":"prod-guid-501","code":"TV-001","measure":"buc","balance":3,"is_top":false,"max_discount_percent":10,"discount":0,"cashback":100,"price":"9999.00","promotion_price":"8999.00","is_stock":true,"date_creation":"2026-03-03T10:00:00Z","brand":{"id":3,"name":"Samsung","description":"Brand electronics","image":"https://api.volta.md/media/brands/samsung.png","slug":"samsung"},"category":{"id":5,"name":"TV","guid":"cat-guid-5","slug":"tv"},"subcategory":{"id":8,"name":"Televizoare","guid":"sub-guid-8","slug":"televizoare"},"subsubcategory":{"id":11,"name":"Smart TV","guid":"ss-guid-11","slug":"smart-tv"},"label":[],"product_gallery":[{"id":1,"product":501,"image":"https://api.volta.md/media/products/tv-1.jpg","image_order":1}],"product_balance":[{"id":1,"product":501,"balance":3,"store":{"id":2,"name_in_1c":"BOT","name":"Volta Botanica","address":"bd. Decebal 99","map_link":"https://maps.google.com","sorted":1,"phone_mobile":"060000001","phone":"022000001"},"updated":"2026-03-03T10:00:00Z"}]},"quantity":1,"unit_price":"9999.00","discount":"0.00","promo_discount":"1000.00","total_price":"8999.00"}],"lang":"ro","use_cashback":false,"transaction_id":"123456789","iban":null,"birth_date":null,"iute_credit_status":null,"iute_credit_session_id":null,"notes":null}
+
+GET /orders/payment-history
+Response example JSON:
+[{"id":1,"user":1,"order_id":101,"amount":"9999.00","confirmed":false,"date_creation":"2026-03-03T10:00:00Z","updated_on":"2026-03-03T10:00:00Z"}]
+
+POST /orders/payment-history
+Response example JSON:
+{"id":1,"user":1,"order_id":101,"amount":"9999.00","confirmed":false,"date_creation":"2026-03-03T10:00:00Z","updated_on":"2026-03-03T10:00:00Z"}
+
+GET /orders/iute-credit/periods
+Response example JSON:
+{"periods":[3,6,9,12],"min_payment":"850.00","currency":"MDL"}
+
+POST /orders/iute-credit/validate-iban
+Response example JSON:
+{"valid":true}
+
+POST /orders/iute-credit/callback
+Response example JSON:
+{"status":"ok"}
+
+GET /orders/credit
+Response example JSON:
+{"monthly_payment":"833.25","total_credit":"9999.00","periods":[3,6,12],"currency":"MDL"}
+
+GET /orders/easy-credit/offers
+Response example JSON:
+{"offers":[{"ProductID":51034,"Name":"Easy Credit 12 rate","MinAmount":1000,"MaxAmount":30000}]}
+
+POST /orders/easy-credit/installment-calc
+Response example JSON:
+{"calc":{"MonthlyPayment":850.25,"TotalAmount":10203.00,"APR":0},"raw":{"response":{"MonthlyPayment":850.25,"TotalAmount":10203.00,"APR":0}}}
+
+POST /orders/discount-card/calculate
+Response example JSON:
+{"Items":[{"ProductID":"regular-guid","Quantity":1,"Price":200,"Sum":180,"PriceWithDiscount":180,"DiscountSum":20}]}
+
+INTEGRATIONS / EXPORT
+
+POST /api-1c/v3/product-of-the-day
+Response example JSON:
+{"success":"Updated successfully"}
+
+POST /wp-json/wc/v3/product-of-the-day
+Response example JSON:
+{"success":"Updated successfully"}
+
+GET /get_slugs
+Response example JSON:
+{"product_slugs":["televizor-samsung-55","laptop-lenovo"]}
+
+GET /api-1c/v3/orders
+Response example JSON:
+{"orders":[{"id":101,"user":1,"name":"Ion Popescu","delivery_type":"courier","pay_method":"cash","address":"Str. Exemplu 1","comment":"Sunati inainte de livrare.","phone":"060000000","credit_period":"","monthly_payments":"","promo_code":"SPRING10","discount_card":"CARD-001","cashback":100,"total_price":"9999.00","city":"Chisinau","suburb":"Centru","email":"ion@example.com","company":"Volta SRL","pickup_address":{"id":1,"sorted":1,"address":"bd. Decebal 99"},"cost_of_delivery":"0.00","total_discount":"1000.00","status":"new_order","created_at":"2026-03-03T10:00:00Z","updated_at":"2026-03-03T10:05:00Z","order_products":[],"lang":"ro","use_cashback":false,"transaction_id":"123456789","iban":null,"birth_date":null,"iute_credit_status":null,"iute_credit_session_id":null,"notes":null}]}
+
+GET /api-1c/v3/orders/{order}
+Response example JSON:
+{"orders":[{"id":101,"user":1,"name":"Ion Popescu","delivery_type":"courier","pay_method":"cash","address":"Str. Exemplu 1","comment":"Sunati inainte de livrare.","phone":"060000000","credit_period":"","monthly_payments":"","promo_code":"SPRING10","discount_card":"CARD-001","cashback":100,"total_price":"9999.00","city":"Chisinau","suburb":"Centru","email":"ion@example.com","company":"Volta SRL","pickup_address":{"id":1,"sorted":1,"address":"bd. Decebal 99"},"cost_of_delivery":"0.00","total_discount":"1000.00","status":"new_order","created_at":"2026-03-03T10:00:00Z","updated_at":"2026-03-03T10:05:00Z","order_products":[],"lang":"ro","use_cashback":false,"transaction_id":"123456789","iban":null,"birth_date":null,"iute_credit_status":null,"iute_credit_session_id":null,"notes":null}]}
+
+GET /wp-json/wc/v3/orders
+Response example JSON:
+{"orders":[{"id":101,"user":1,"name":"Ion Popescu","delivery_type":"courier","pay_method":"cash","address":"Str. Exemplu 1","comment":"Sunati inainte de livrare.","phone":"060000000","credit_period":"","monthly_payments":"","promo_code":"SPRING10","discount_card":"CARD-001","cashback":100,"total_price":"9999.00","city":"Chisinau","suburb":"Centru","email":"ion@example.com","company":"Volta SRL","pickup_address":{"id":1,"sorted":1,"address":"bd. Decebal 99"},"cost_of_delivery":"0.00","total_discount":"1000.00","status":"new_order","created_at":"2026-03-03T10:00:00Z","updated_at":"2026-03-03T10:05:00Z","order_products":[],"lang":"ro","use_cashback":false,"transaction_id":"123456789","iban":null,"birth_date":null,"iute_credit_status":null,"iute_credit_session_id":null,"notes":null}]}
+
+GET /wp-json/wc/v3/orders/{order}
+Response example JSON:
+{"orders":[{"id":101,"user":1,"name":"Ion Popescu","delivery_type":"courier","pay_method":"cash","address":"Str. Exemplu 1","comment":"Sunati inainte de livrare.","phone":"060000000","credit_period":"","monthly_payments":"","promo_code":"SPRING10","discount_card":"CARD-001","cashback":100,"total_price":"9999.00","city":"Chisinau","suburb":"Centru","email":"ion@example.com","company":"Volta SRL","pickup_address":{"id":1,"sorted":1,"address":"bd. Decebal 99"},"cost_of_delivery":"0.00","total_discount":"1000.00","status":"new_order","created_at":"2026-03-03T10:00:00Z","updated_at":"2026-03-03T10:05:00Z","order_products":[],"lang":"ro","use_cashback":false,"transaction_id":"123456789","iban":null,"birth_date":null,"iute_credit_status":null,"iute_credit_session_id":null,"notes":null}]}
+
+GET /wp-json/wc/users
+Response example JSON:
+{"users":[{"id":10,"name":"Ion","name_last":"Popescu","salutation":"Dl","birth_date":"1990-05-12","username":"ion.popescu","email":"ion@example.com","phone":"060000000","country":"Moldova","city":"Chisinau","region":"Centru","address":"Str. Exemplu 1","cashback":120,"image":"images/profile.jpg","company_name":"Volta SRL","company_email":"office@example.com","type_company":"SRL","legal_address":"Chisinau","idno":"1000000000000","tva":"0200000","iban":"MD00VI222222222222222222","c_b":"VICBMD2X","bank":"Victoriabank","status":"active","facebook_id":null,"date_creation":"2026-01-10T12:00:00Z","updated_on":"2026-03-03T09:00:00Z","user":{"id":1,"username":"ion.popescu","first_name":"Ion","last_name":"Popescu","email":"ion@example.com","is_active":true,"is_staff":false,"is_superuser":false,"last_login":"2026-03-03T09:00:00Z","date_joined":"2026-01-10T12:00:00Z"}}]}
+
+GET /wp-json/wc/v3/users
+Response example JSON:
+{"users":[{"id":10,"name":"Ion","name_last":"Popescu","salutation":"Dl","birth_date":"1990-05-12","username":"ion.popescu","email":"ion@example.com","phone":"060000000","country":"Moldova","city":"Chisinau","region":"Centru","address":"Str. Exemplu 1","cashback":120,"image":"images/profile.jpg","company_name":"Volta SRL","company_email":"office@example.com","type_company":"SRL","legal_address":"Chisinau","idno":"1000000000000","tva":"0200000","iban":"MD00VI222222222222222222","c_b":"VICBMD2X","bank":"Victoriabank","status":"active","facebook_id":null,"date_creation":"2026-01-10T12:00:00Z","updated_on":"2026-03-03T09:00:00Z","user":{"id":1,"username":"ion.popescu","first_name":"Ion","last_name":"Popescu","email":"ion@example.com","is_active":true,"is_staff":false,"is_superuser":false,"last_login":"2026-03-03T09:00:00Z","date_joined":"2026-01-10T12:00:00Z"}}]}
+
+POST /wp-json/wc/v3/users/{userProfile}
+Response example JSON:
+{"success":"User '10' updated successfully"}
+
+PAYMENTS / AUX
+
+POST /check-promo-code
+Response example JSON:
+{"coupon":{"id":1,"coupon_uid":"promo-001","coupon_code":"SPRING10","description":"Reducere 10%","discount_type":"percent","coupon_amount":10,"allow_free_shipping":false,"coupon_start_date":"2026-03-01","coupon_expiry_date":"2026-03-31","minimum_spend":500,"maximum_spend":50000,"individual_use_only":false,"exclude_sale_items":false,"products":"501,502","exclude_products":"","product_categories":"5","exclude_categories":"","email_restrictions":"ion@example.com","usage_limit_per_coupon":100,"usage_limit_per_user":1,"date_creation":"2026-03-03T10:00:00Z"}}
+
+POST /payment_notification
+Response body:
+Redirect (302) to frontend order confirmation URL, for example:
+Location: https://volta.md/comanda-primita/?id=101&hash=encoded_hash
+
+POST /payment-confirmation
+Response example JSON:
+{"status":"OK"}
+
+POST /payment-return
+Response example JSON:
+{"status":"OK"}
+
+POST /payment-partial-return
+Response example JSON:
+{"status":"OK"}
+
+POST /get_trans_id
+Response example JSON:
+{"TRANSACTION_ID":"852741963","ip":"127.0.0.1"}
+
+GET /get-order
+Response body:
+Plain text: "101,CARD_C"
+
+GET /get_unread_counter
+Response example JSON:
+{"order":7}
+
+AUTOCOMPLETE
+
+GET /attribute-value-autocomplete
+Response example JSON:
+{"results":[{"id":12,"text":"Samsung"}],"pagination":{"more":false}}
+
+GET /attribute-name-autocomplete
+Response example JSON:
+{"results":[{"id":20,"text":"Brand"}],"pagination":{"more":false}}
+
+GET /accessory-autocomplete
+Response example JSON:
+{"results":[{"id":503,"text":"Suport TV"}],"pagination":{"more":false}}

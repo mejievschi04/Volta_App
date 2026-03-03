@@ -17,10 +17,11 @@ import { usePromotionsHome } from '../hooks/usePromotions';
 import { useMessages } from '../hooks/useMessages';
 import ApiErrorView from './_components/ApiErrorView';
 import { SkeletonPromoSlide } from './_components/Skeleton';
-import { resolveImageUrl } from '../lib/apiClient';
-import * as Notifications from 'expo-notifications';
+import { resolveImageUrl, getUploadsBaseUrl } from '../lib/apiClient';
+import Notifications from '../lib/notifications';
+import { filterAndSortPromotions, type PromoNormalized } from '../lib/promotions';
 
-type Slide = { id: string; title: string; image_url: string; deadline: string; link?: string; created_at?: string };
+type Slide = PromoNormalized & { link?: string };
 
 export default function Home() {
   const router = useRouter();
@@ -59,15 +60,21 @@ export default function Home() {
   const { data: messagesData, refetch: refetchMessages } = useMessages(user?.id ?? null, { refetchInterval: 20000 });
 
   const slides = useMemo(() => {
-    const promotionsArray = Array.isArray(promotionsData) ? promotionsData : [];
-    const mapped = promotionsArray.map((promo: any) => ({
-      ...promo,
-      image_url: promo.image_home_url || promo.image_url,
-    }));
-    const now = Date.now();
-    return mapped
-      .filter((p: any) => new Date(p.deadline).getTime() > now)
-      .sort((a: any, b: any) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime());
+    const raw = Array.isArray(promotionsData) ? promotionsData : [];
+    const filtered = filterAndSortPromotions(raw as any);
+    const uploadsBase = getUploadsBaseUrl();
+    const siteOrigin = uploadsBase.replace(/^(https?:\/\/)api\./, '$1');
+    const withLink: Slide[] = filtered.map((p) => {
+      const linkRaw = (p as any).button_for_promo_page_link ?? (p as any).link;
+      const link = linkRaw
+        ? (linkRaw.startsWith('http') ? linkRaw : `${siteOrigin.replace(/\/$/, '')}${linkRaw.startsWith('/') ? '' : '/'}${linkRaw}`)
+        : undefined;
+      return { ...p, link };
+    });
+    if (typeof __DEV__ !== 'undefined' && __DEV__ && raw.length > 0) {
+      console.log('[Home Promoții] Primite:', raw.length, ', după filtru (neexpirate):', withLink.length);
+    }
+    return withLink;
   }, [promotionsData]);
 
   const currentSlide = slides[active] ?? null;
@@ -130,14 +137,13 @@ export default function Home() {
     if (active >= slides.length) setActive(Math.max(0, slides.length - 1));
   }, [slides.length, active]);
 
-  // Prefetch first images for smoother carousel
+  // Nu prefetchăm toate imaginile – provoacă Pool hard cap pe Android; doar slide-ul activ
   useEffect(() => {
-    if (!slides.length) return;
-    slides.slice(0, 5).forEach((s) => {
-      const uri = resolveImageUrl(s?.image_url);
-      if (uri) Image.prefetch(uri).catch(() => {});
-    });
-  }, [slides]);
+    if (!slides.length || active >= slides.length) return;
+    const s = slides[active];
+    const uri = resolveImageUrl(s?.image_url);
+    if (uri) Image.prefetch(uri).catch(() => {});
+  }, [slides, active]);
 
   const goToSlide = useCallback((index: number) => {
     if (slides.length === 0) return;
@@ -484,11 +490,14 @@ export default function Home() {
                     decelerationRate="fast"
                     snapToInterval={slideWidth}
                     snapToAlignment="start"
+                    contentContainerStyle={{ width: slides.length * slideWidth }}
                   >
                     {slides.map((s, i) => {
                       const tl = i === active ? calcLeft(s.deadline) : null;
                       const total = tl ? (tl.days + tl.hours + tl.minutes) : 0;
                       const showTimer = !!tl && total > 0;
+                      // Randăm imaginea doar pentru slide-ul vizibil ±1 vecin, ca să nu depășim pool-ul de imagini pe Android
+                      const shouldLoadImage = Math.abs(i - active) <= 1;
 
                       return (
                         <View
@@ -521,12 +530,20 @@ export default function Home() {
                               backgroundColor: colors.background,
                             }}
                           >
-                            <Image
-                              source={{ uri: resolveImageUrl(s.image_url) ?? '' }}
-                              style={{ width: slideWidth, height: SLIDE_HEIGHT }}
-                              resizeMode="contain"
-                              onError={(e) => console.error('[Home] Eroare imagine:', s.image_url, e.nativeEvent?.error)}
-                            />
+                            {shouldLoadImage && (resolveImageUrl(s.image_url) ?? '') ? (
+                              <Image
+                                source={{ uri: resolveImageUrl(s.image_url) ?? '' }}
+                                style={{ width: slideWidth, height: SLIDE_HEIGHT }}
+                                resizeMode="contain"
+                                onError={(e) => {
+                                  if (__DEV__) console.warn('[Home] Imagine indisponibilă:', s.image_url, e.nativeEvent?.error);
+                                }}
+                              />
+                            ) : (
+                              <View style={{ width: slideWidth, height: SLIDE_HEIGHT, alignItems: 'center', justifyContent: 'center' }}>
+                                <Ionicons name="pricetag-outline" size={48} color={colors.textMuted} />
+                              </View>
+                            )}
                             <LinearGradient
                               colors={['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.75)']}
                               locations={[0.35, 0.7, 1]}

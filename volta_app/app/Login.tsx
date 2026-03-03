@@ -165,6 +165,7 @@ const LoginScreen: React.FC = () => {
 
   const [nume, setNume] = useState("");
   const [prenume, setPrenume] = useState("");
+  const [username, setUsername] = useState("");
   const [telefon, setTelefon] = useState("+373");
   const [dataNasterii, setDataNasterii] = useState("");
   const [sex, setSex] = useState("");
@@ -341,9 +342,9 @@ const LoginScreen: React.FC = () => {
 
   const handleLogin = useCallback(async () => {
     setFieldErrors({});
-    if (!telefon || !password) {
+    if (!username.trim() || !password) {
       const next: Record<string, string> = {};
-      if (!telefon) next.telefon = 'Introdu numărul de telefon.';
+      if (!username.trim()) next.username = 'Introdu email-ul sau utilizatorul.';
       if (!password) next.password = 'Introdu parola.';
       setFieldErrors(next);
       return;
@@ -351,29 +352,36 @@ const LoginScreen: React.FC = () => {
 
     setIsLoading(true);
     try {
-      console.log('[Login] Începând login cu:', { telefon: telefon.trim(), passwordLength: password.length });
-      const { data, error } = await apiClient.login(telefon.trim(), password);
-      
-      console.log('[Login] Răspuns API:', { hasData: !!data, hasError: !!error, data, error });
+      const { data, error } = await apiClient.loginWithUsername(username.trim(), password);
 
       if (error) {
         Alert.alert('Autentificare eșuată', error);
         return;
       }
 
-      const userObj = data?.user ?? data;
-      if (!userObj) {
-        Alert.alert('Eroare', 'Nu s-au primit date de la server. Încearcă din nou.');
+      const authToken = data?.auth_token;
+      if (!authToken) {
+        Alert.alert('Eroare', 'Nu s-a primit token de la server. Încearcă din nou.');
         return;
       }
 
-      const userToSet = (userObj as { user?: User }).user ?? userObj;
-      const tokenObj = data?.token ?? null;
-      if (tokenObj) await setToken(tokenObj);
-      setUser(userToSet as User);
+      await setToken(authToken);
 
-      const u = userToSet as User;
-      const prenume = u.prenume || u.nume || 'Utilizator';
+      const { data: meData, error: meError } = await apiClient.getMe();
+      if (meError || !meData) {
+        setUser({
+          id: 0,
+          nume: '',
+          prenume: 'Utilizator',
+          telefon: username,
+          email: username,
+        });
+      } else {
+        setUser(meData);
+      }
+
+      const u = meData ?? { prenume: 'Utilizator' };
+      const prenume = (u as User).prenume || (u as User).nume || 'Utilizator';
       setNotificationMessage(`Bun venit, ${prenume}!`);
       setShowNotification(true);
       Animated.spring(notificationAnim, {
@@ -389,7 +397,6 @@ const LoginScreen: React.FC = () => {
           useNativeDriver: true,
         }).start(() => {
           setShowNotification(false);
-          console.log('[Login] Navigare către Home...');
           router.replace("/Home");
         });
       }, 2500);
@@ -398,7 +405,7 @@ const LoginScreen: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [telefon, password, setUser, setToken, router]);
+  }, [username, password, setUser, setToken, router]);
 
   const toggleSignup = useCallback(() => {
     setIsSignup(!isSignup);
@@ -961,17 +968,16 @@ const LoginScreen: React.FC = () => {
                 {!isSignup && (
                   <>
                     <InputField
-                      placeholder="Număr de telefon (+373...)"
-                      value={telefon}
-                      onChangeText={handleTelefonChange}
-                      keyboardType="phone-pad"
-                      maxLength={12}
-                      icon="call-outline"
+                      placeholder="Email sau utilizator"
+                      value={username}
+                      onChangeText={(t) => { setFieldErrors((e) => ({ ...e, username: '' })); setUsername(t); }}
+                      keyboardType="email-address"
+                      icon="person-outline"
                       focusedInput={focusedInput}
                       setFocusedInput={setFocusedInput}
                       scrollViewRef={scrollViewRef}
                       colors={colors}
-                      error={fieldErrors.telefon}
+                      error={fieldErrors.username}
                       isSmallScreen={isSmallScreen}
                       scrollToY={scrollToY}
                     />
