@@ -3,7 +3,8 @@
  */
 export interface DiscountCardItem {
   id: number;
-  discount_value: 5 | 10;
+  /** Procent reducere de pe card (moștenit din API), ex. 5, 10, 15 */
+  discount_value: number;
   expires_at: string | null;
   created_at?: string;
   /** Cod barcode de la backend (opțional) */

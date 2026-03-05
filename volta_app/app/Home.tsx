@@ -2,26 +2,31 @@ import React, { useEffect, useRef, useState, useContext, useCallback, useMemo } 
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   NativeSyntheticEvent, NativeScrollEvent,
-  Image, ActivityIndicator, Animated, Platform, Linking, Modal, Alert, RefreshControl
+  Image, ActivityIndicator, Animated, Platform, Linking, RefreshControl
 } from 'react-native';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { openBrowserAsync, WebBrowserPresentationStyle } from 'expo-web-browser';
 import { UserContext } from './_context/UserContext';
 import { ThemeContext } from './_context/ThemeContext';
+import { CartContext } from './_context/CartContext';
 import { getColors, spacing } from './_components/theme';
 import Screen from './_components/Screen';
-import { useResponsive, responsiveSize, responsiveWidth, responsiveHeight } from './_hooks/useResponsive';
+import { useResponsive, responsiveSize, responsiveWidth } from './_hooks/useResponsive';
 import { usePromotionsHome } from '../hooks/usePromotions';
 import { useMessages } from '../hooks/useMessages';
 import ApiErrorView from './_components/ApiErrorView';
 import { SkeletonPromoSlide } from './_components/Skeleton';
-import { resolveImageUrl, getUploadsBaseUrl } from '../lib/apiClient';
+import { resolveImageUrl, getUploadsBaseUrl, apiClient } from '../lib/apiClient';
 import Notifications from '../lib/notifications';
 import { filterAndSortPromotions, type PromoNormalized } from '../lib/promotions';
+import { normalizeProduct } from './Search';
+import ProductCard from './_components/ProductCard';
+import type { ProductCardProduct } from './_components/ProductCard';
 
 type Slide = PromoNormalized & { link?: string };
+type ProductWithCategory = ProductCardProduct & { categorySlug: string };
 
 export default function Home() {
   const router = useRouter();
@@ -49,6 +54,8 @@ export default function Home() {
   const [refreshing, setRefreshing] = useState(false);
   const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const [newMessageNotification, setNewMessageNotification] = useState<{ message: string; id: string | number } | null>(null);
+  const [relevantProducts, setRelevantProducts] = useState<ProductWithCategory[]>([]);
+  const [onlineOnlyProducts, setOnlineOnlyProducts] = useState<ProductWithCategory[]>([]);
   const lastMessageIdRef = useRef<string | number | null>(null);
   const notificationAnim = useRef(new Animated.Value(-100)).current;
   const scrollRef = useRef<ScrollView | null>(null);
@@ -58,6 +65,25 @@ export default function Home() {
 
   const { data: promotionsData, isLoading: loading, isError: promotionsError, error: promotionsErrorObj, refetch: refetchPromo } = usePromotionsHome();
   const { data: messagesData, refetch: refetchMessages } = useMessages(user?.id ?? null, { refetchInterval: 20000 });
+  const { addToCart } = useContext(CartContext);
+
+  useEffect(() => {
+    (async () => {
+      const res = await apiClient.getShopProducts({ page_size: 10 });
+      if (!res.error && res.data?.length) {
+        setRelevantProducts((res.data as any[]).map((p: any) => normalizeProduct(p)));
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      const res = await apiClient.getShopProducts({ page_size: 10, is_online_only: 1 });
+      if (!res.error && res.data?.length) {
+        setOnlineOnlyProducts((res.data as any[]).map((p: any) => normalizeProduct(p)));
+      }
+    })();
+  }, []);
 
   const slides = useMemo(() => {
     const raw = Array.isArray(promotionsData) ? promotionsData : [];
@@ -312,7 +338,7 @@ export default function Home() {
 
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: responsiveSize(24, scale) }}
+          contentContainerStyle={{ paddingBottom: responsiveSize(100, scale) }}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -324,7 +350,7 @@ export default function Home() {
           }
           nestedScrollEnabled
         >
-          {/* Modern Header */}
+          {/* Header compact */}
           {isDark ? (
             <Animated.View
               style={[
@@ -332,11 +358,8 @@ export default function Home() {
                 {
                   opacity: fadeAnim,
                   minHeight: headerHeight,
-                  borderWidth: 1,
-                  borderColor: colors.border,
                   backgroundColor: colors.surface,
-                  borderRadius: 16,
-                  overflow: 'hidden',
+                  borderColor: colors.border,
                 },
               ]}
             >
@@ -352,35 +375,15 @@ export default function Home() {
                   <Text style={responsiveStyles.avatarInitial}>{initial}</Text>
                 </LinearGradient>
               </TouchableOpacity>
-
               <View style={responsiveStyles.greetingWrap}>
-                <Text
-                  style={[responsiveStyles.helloText, { color: colors.textMuted }]}
-                  numberOfLines={1}
-                >
-                  Salut,
-                </Text>
-                <Text
-                  style={[responsiveStyles.greeting, { color: colors.text }]}
-                  numberOfLines={1}
-                >
-                  {userName}
-                </Text>
+                <Text style={[responsiveStyles.helloText, { color: colors.textMuted }]} numberOfLines={1}>Salut,</Text>
+                <Text style={[responsiveStyles.greeting, { color: colors.text }]} numberOfLines={1}>{userName}</Text>
               </View>
-
               <View style={responsiveStyles.topButtons}>
-                <TouchableOpacity
-                  style={[responsiveStyles.iconBtn, { backgroundColor: '#000' }]}
-                  onPress={() => router.push('/Notifications')}
-                  activeOpacity={0.7}
-                >
+                <TouchableOpacity style={[responsiveStyles.iconBtn, { backgroundColor: '#000' }]} onPress={() => router.push('/Notifications')} activeOpacity={0.7}>
                   <Ionicons name="notifications-outline" size={22} color={colors.primaryButton} />
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={[responsiveStyles.iconBtn, { backgroundColor: '#000', marginLeft: 8 }]}
-                  onPress={() => router.push('/Settings')}
-                  activeOpacity={0.7}
-                >
+                <TouchableOpacity style={[responsiveStyles.iconBtn, { backgroundColor: '#000', marginLeft: 8 }]} onPress={() => router.push('/Settings')} activeOpacity={0.7}>
                   <Ionicons name="settings-outline" size={22} color={colors.primaryButton} />
                 </TouchableOpacity>
               </View>
@@ -392,65 +395,43 @@ export default function Home() {
                 {
                   opacity: fadeAnim,
                   minHeight: headerHeight,
-                  borderWidth: 1,
-                  borderColor: '#FFEE00',
-                  borderRadius: 16,
-                  overflow: 'hidden',
+                  borderColor: 'rgba(0,0,0,0.08)',
+                  backgroundColor: '#FFF',
                 },
               ]}
             >
-              <LinearGradient
-                colors={['#FFEE00', '#FFEE00']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={StyleSheet.absoluteFill}
-              />
-              <TouchableOpacity
-                style={responsiveStyles.avatarWrap}
-                onPress={() => router.push('/Profile')}
-                activeOpacity={0.7}
-              >
+              <TouchableOpacity style={responsiveStyles.avatarWrap} onPress={() => router.push('/Profile')} activeOpacity={0.7}>
                 <View style={[responsiveStyles.avatarGradient, { backgroundColor: '#000', borderWidth: 1.5, borderColor: '#FFEE00' }]}>
                   <Text style={[responsiveStyles.avatarInitial, { color: '#FFEE00' }]}>{initial}</Text>
                 </View>
               </TouchableOpacity>
-
               <View style={responsiveStyles.greetingWrap}>
-                <Text
-                  style={[responsiveStyles.helloText, { color: '#666' }]}
-                  numberOfLines={1}
-                >
-                  Salut,
-                </Text>
-                <Text
-                  style={[responsiveStyles.greeting, { color: '#000' }]}
-                  numberOfLines={1}
-                >
-                  {userName}
-                </Text>
+                <Text style={[responsiveStyles.helloText, { color: '#666' }]} numberOfLines={1}>Salut,</Text>
+                <Text style={[responsiveStyles.greeting, { color: '#000' }]} numberOfLines={1}>{userName}</Text>
               </View>
-
               <View style={responsiveStyles.topButtons}>
-                <TouchableOpacity
-                  style={[responsiveStyles.iconBtn, { backgroundColor: '#000' }]}
-                  onPress={() => router.push('/Notifications')}
-                  activeOpacity={0.7}
-                >
+                <TouchableOpacity style={[responsiveStyles.iconBtn, { backgroundColor: '#000' }]} onPress={() => router.push('/Notifications')} activeOpacity={0.7}>
                   <Ionicons name="notifications-outline" size={22} color="#FFEE00" />
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={[responsiveStyles.iconBtn, { backgroundColor: '#000', marginLeft: 8 }]}
-                  onPress={() => router.push('/Settings')}
-                  activeOpacity={0.7}
-                >
+                <TouchableOpacity style={[responsiveStyles.iconBtn, { backgroundColor: '#000', marginLeft: 8 }]} onPress={() => router.push('/Settings')} activeOpacity={0.7}>
                   <Ionicons name="settings-outline" size={22} color="#FFEE00" />
                 </TouchableOpacity>
               </View>
             </Animated.View>
           )}
 
-          {/* Slideshow + imagine + timer – de la 0, doar inline */}
-          <View style={{ width: slideSize, marginHorizontal: -spacing.lg, position: 'relative', marginTop: 28, marginBottom: 16, minHeight: SLIDE_HEIGHT }}>
+          {/* Bară căutare – deschide ecranul de search */}
+          <TouchableOpacity
+            style={[responsiveStyles.searchBar, { backgroundColor: isDark ? colors.surface : '#F5F5F5', borderColor: isDark ? colors.border : '#E8E8E8' }]}
+            onPress={() => router.push('/Search')}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="search" size={20} color={colors.textMuted} />
+            <Text style={[responsiveStyles.searchPlaceholder, { color: colors.textMuted }]}>Ce cauți? Caută în catalog</Text>
+          </TouchableOpacity>
+
+          {/* Banner promoții */}
+          <View style={{ width: slideSize, marginHorizontal: -spacing.lg, position: 'relative', marginTop: responsiveSize(8, scale), marginBottom: responsiveSize(20, scale), minHeight: SLIDE_HEIGHT }}>
             <Animated.View
               style={{
                 opacity: fadeAnim,
@@ -555,45 +536,29 @@ export default function Home() {
                             <View
                               style={{
                                 position: 'absolute',
-                                bottom: 0,
-                                left: 0,
-                                right: 0,
-                                paddingHorizontal: 14,
-                                paddingBottom: 10,
-                                paddingTop: 12,
+                                bottom: responsiveSize(8, scale),
+                                left: responsiveSize(12, scale),
+                                right: responsiveSize(12, scale),
                                 zIndex: 10,
+                                alignItems: 'center',
                               }}
                             >
-                              <View
+                              <Text
                                 style={{
-                                  width: '100%',
-                                  flexDirection: 'row',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  backgroundColor: 'rgba(0,0,0,0.6)',
-                                  borderRadius: 10,
-                                  paddingVertical: 6,
-                                  paddingHorizontal: 12,
-                                  gap: 4,
-                                  borderWidth: 1,
-                                  borderColor: 'rgba(255,255,255,0.15)',
+                                  fontSize: responsiveSize(11, scale),
+                                  fontWeight: '600',
+                                  color: 'rgba(255,255,255,0.95)',
+                                  textShadowColor: 'rgba(0,0,0,0.6)',
+                                  textShadowOffset: { width: 0, height: 1 },
+                                  textShadowRadius: 2,
                                 }}
                               >
-                                <View style={{ alignItems: 'center', flex: 1 }}>
-                                  <Text style={{ fontSize: 16, fontWeight: '800', color: '#FFEE00' }}>{String(tl.days).padStart(2, '0')}</Text>
-                                  <Text style={{ fontSize: 8, fontWeight: '600', color: 'rgba(255,255,255,0.9)', textTransform: 'uppercase', marginTop: 1 }}>Zile</Text>
-                                </View>
-                                <Text style={{ fontSize: 14, fontWeight: '700', color: 'rgba(255,255,255,0.5)', marginHorizontal: 2 }}>:</Text>
-                                <View style={{ alignItems: 'center', flex: 1 }}>
-                                  <Text style={{ fontSize: 16, fontWeight: '800', color: '#FFEE00' }}>{String(tl.hours).padStart(2, '0')}</Text>
-                                  <Text style={{ fontSize: 8, fontWeight: '600', color: 'rgba(255,255,255,0.9)', textTransform: 'uppercase', marginTop: 1 }}>Ore</Text>
-                                </View>
-                                <Text style={{ fontSize: 14, fontWeight: '700', color: 'rgba(255,255,255,0.5)', marginHorizontal: 2 }}>:</Text>
-                                <View style={{ alignItems: 'center', flex: 1 }}>
-                                  <Text style={{ fontSize: 16, fontWeight: '800', color: '#FFEE00' }}>{String(tl.minutes).padStart(2, '0')}</Text>
-                                  <Text style={{ fontSize: 8, fontWeight: '600', color: 'rgba(255,255,255,0.9)', textTransform: 'uppercase', marginTop: 1 }}>Min</Text>
-                                </View>
-                              </View>
+                                {tl.days === 0
+                                  ? 'Expiră azi'
+                                  : tl.days === 1
+                                    ? 'Au mai rămas 1 zi'
+                                    : `Au mai rămas ${tl.days} zile`}
+                              </Text>
                             </View>
                           )}
                         </View>
@@ -632,66 +597,113 @@ export default function Home() {
 
           </View>
 
-          {/* Toate Promoțiile Button */}
-          <View style={[responsiveStyles.actionCardsContainer, { paddingHorizontal: responsiveWidth(5) }]}>
-            <TouchableOpacity
-              style={[responsiveStyles.allPromosButton, { backgroundColor: colors.surface }]}
-              onPress={() => router.push('/Promotii')}
-              activeOpacity={0.8}
-            >
-              <Text style={[responsiveStyles.allPromosText, { color: colors.text }]}>Toate Promoțiile</Text>
-              <Ionicons name="arrow-forward" size={20} color={colors.text} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Action Cards Section - Apel and Mesaj */}
-          <View style={[responsiveStyles.actionCardsContainer, { paddingHorizontal: responsiveWidth(5) }]}>
-            {/* Apel Card */}
+          {/* Apel și Mesaj */}
+          <View style={[responsiveStyles.quickActionsRow, { marginTop: responsiveSize(10, scale) }]}>
             <TouchableOpacity
               style={[
-                responsiveStyles.actionCard,
-                { 
-                  backgroundColor: '#FFEE00',
-                  borderColor: 'rgba(0, 0, 0, 0.1)',
-                  shadowColor: '#FFEE00',
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.15,
-                  shadowRadius: 8,
-                  elevation: 4,
-                }
+                responsiveStyles.quickActionChip,
+                {
+                  flex: 1,
+                  backgroundColor: colors.primaryButton,
+                  borderColor: isDark ? 'rgba(255,238,0,0.4)' : 'rgba(0,0,0,0.12)',
+                },
               ]}
-              onPress={() => {
-                Linking.openURL('tel:+37360535353');
-              }}
-              activeOpacity={0.8}
+              onPress={() => Linking.openURL('tel:+37360535353')}
+              activeOpacity={0.85}
             >
-              <Ionicons name="call" size={24} color="#000" />
-              <Text style={[responsiveStyles.actionCardTitle, { color: '#000' }]}>Apel</Text>
+              <Ionicons name="call" size={20} color="#000" />
+              <Text style={[responsiveStyles.quickActionChipTextPrimary, { color: '#000' }]}>Apel</Text>
             </TouchableOpacity>
 
-            {/* Mesaj Card */}
             <TouchableOpacity
               style={[
-                responsiveStyles.actionCard,
-                { 
-                  backgroundColor: '#FFEE00',
-                  borderColor: 'rgba(0, 0, 0, 0.1)',
-                  position: 'relative',
-                }
+                responsiveStyles.quickActionChip,
+                {
+                  flex: 1,
+                  backgroundColor: isDark ? colors.surface : '#FFF',
+                  borderColor: isDark ? colors.border : '#E0E0E0',
+                },
               ]}
               onPress={() => router.push('/Mesaje')}
               activeOpacity={0.8}
             >
-              <Ionicons name="chatbubble-ellipses" size={24} color="#000" />
-              <Text style={[responsiveStyles.actionCardTitle, { color: '#000' }]}>Mesaj</Text>
+              <Ionicons name="chatbubble-ellipses-outline" size={20} color={colors.primaryButton} />
+              <Text style={[responsiveStyles.quickActionChipTextSecondary, { color: colors.text }]}>Mesaj</Text>
               {unreadMessagesCount > 0 && (
                 <View style={responsiveStyles.messageBadge}>
-                  <Text style={responsiveStyles.messageBadgeText}>
-                    {unreadMessagesCount > 99 ? '99+' : unreadMessagesCount}
-                  </Text>
+                  <Text style={responsiveStyles.messageBadgeText}>{unreadMessagesCount > 99 ? '99+' : unreadMessagesCount}</Text>
                 </View>
               )}
             </TouchableOpacity>
+          </View>
+
+          {/* Produse relevante */}
+          <TouchableOpacity
+            style={[
+              responsiveStyles.sectionTitleRow,
+              { marginTop: responsiveSize(24, scale) },
+            ]}
+            onPress={() => router.push('/Catalog')}
+            activeOpacity={0.7}
+          >
+            <Text style={[responsiveStyles.sectionTitle, responsiveStyles.sectionTitleModern, { color: colors.text, paddingHorizontal: 0 }]}>Produse relevante</Text>
+            <Ionicons name="chevron-forward" size={22} color={colors.textMuted} />
+          </TouchableOpacity>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={[responsiveStyles.productRowContent, { paddingBottom: responsiveSize(24, scale) }]}
+          >
+            {relevantProducts.map((p) => (
+              <View key={p.id} style={responsiveStyles.productCardWrap}>
+                <ProductCard
+                  product={p}
+                  categorySlug={p.categorySlug}
+                  onAddToCart={() => addToCart({ id: p.id, name: p.name, price: p.price, currency: p.currency, image_url: p.image_url ?? null }, 1)}
+                  variant="compact"
+                />
+              </View>
+            ))}
+          </ScrollView>
+
+          {/* Doar Online – fundal galben, ieșim din padding cu margin negativ */}
+          <View style={[
+            responsiveStyles.doarOnlineSection,
+            {
+              alignSelf: 'stretch',
+              marginLeft: -spacing.lg,
+              marginRight: -spacing.lg,
+              backgroundColor: '#FFEE00',
+              marginTop: responsiveSize(24, scale),
+              paddingTop: responsiveSize(12, scale),
+              paddingBottom: responsiveSize(14, scale),
+              paddingHorizontal: spacing.lg,
+            },
+          ]}>
+            <TouchableOpacity
+              style={responsiveStyles.sectionTitleRow}
+              onPress={() => router.push('/Catalog')}
+              activeOpacity={0.7}
+            >
+              <Text style={[responsiveStyles.sectionTitle, responsiveStyles.sectionTitleModern, { color: colors.text, marginTop: 0, paddingHorizontal: 0 }]}>Doar Online</Text>
+              <Ionicons name="chevron-forward" size={22} color={colors.textMuted} />
+            </TouchableOpacity>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={[responsiveStyles.productRowContent, { paddingBottom: responsiveSize(24, scale) }]}
+            >
+              {onlineOnlyProducts.map((p) => (
+                <View key={p.id} style={responsiveStyles.productCardWrap}>
+                  <ProductCard
+                    product={p}
+                    categorySlug={p.categorySlug}
+                    onAddToCart={() => addToCart({ id: p.id, name: p.name, price: p.price, currency: p.currency, image_url: p.image_url ?? null }, 1)}
+                    variant="compact"
+                  />
+                </View>
+              ))}
+            </ScrollView>
           </View>
         </ScrollView>
 
@@ -701,25 +713,118 @@ export default function Home() {
 }
 
 // Create responsive styles function
+const CONTENT_PADDING_H = 20; // grid unit pentru aliniere
 const getStyles = (isSmallScreen: boolean, scale: number) => StyleSheet.create({
-  container: { 
+  container: {
     flex: 1,
   },
-  headerRow: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: responsiveWidth(5),
-    paddingVertical: responsiveSize(10, scale),
-    marginTop: Platform.OS === 'ios' ? responsiveSize(8, scale) : responsiveSize(12, scale),
-    marginBottom: responsiveSize(16, scale),
+    paddingHorizontal: responsiveSize(CONTENT_PADDING_H, scale),
+    paddingVertical: responsiveSize(14, scale),
+    marginTop: Platform.OS === 'ios' ? responsiveSize(10, scale) : responsiveSize(14, scale),
     marginHorizontal: 0,
+    marginBottom: responsiveSize(16, scale),
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
     width: '100%',
+    maxWidth: '100%',
+    alignSelf: 'stretch',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
     elevation: 2,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: responsiveSize(14, scale),
+    paddingHorizontal: responsiveSize(CONTENT_PADDING_H, scale),
+    marginHorizontal: 0,
+    marginBottom: responsiveSize(20, scale),
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: responsiveSize(12, scale),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
+  },
+  searchPlaceholder: {
+    fontSize: responsiveSize(15, scale),
+    flex: 1,
+  },
+  sectionTitle: {
+    fontSize: responsiveSize(18, scale),
+    fontWeight: '700',
+    marginBottom: 0,
+    paddingHorizontal: 0,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: responsiveSize(CONTENT_PADDING_H, scale),
+    paddingVertical: responsiveSize(6, scale),
+  },
+  sectionTitleModern: {
+    letterSpacing: 0.3,
+    fontWeight: '800',
+    fontSize: responsiveSize(18, scale),
+  },
+  productRowContent: {
+    paddingHorizontal: responsiveSize(CONTENT_PADDING_H, scale),
+    paddingTop: responsiveSize(12, scale),
+  },
+  productCardWrap: {
+    marginRight: responsiveSize(16, scale),
+  },
+  doarOnlineSection: {
+    overflow: 'hidden',
+  },
+  quickActionsRow: {
+    flexDirection: 'row',
+    paddingHorizontal: responsiveSize(CONTENT_PADDING_H, scale),
+    paddingVertical: responsiveSize(6, scale),
+    gap: responsiveSize(12, scale),
+    marginTop: 0,
+  },
+  quickActionChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: responsiveSize(12, scale),
+    paddingHorizontal: responsiveSize(14, scale),
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: responsiveSize(8, scale),
+    position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  quickActionChipPrimary: {
+    backgroundColor: '#FFEE00',
+    borderColor: 'rgba(0,0,0,0.08)',
+  },
+  quickActionChipText: {
+    fontSize: responsiveSize(15, scale),
+    fontWeight: '700',
+    color: '#000',
+  },
+  quickActionChipTextPrimary: {
+    fontSize: responsiveSize(15, scale),
+    fontWeight: '700',
+  },
+  quickActionChipTextSecondary: {
+    fontSize: responsiveSize(15, scale),
+    fontWeight: '600',
   },
   avatarWrap: {
     marginRight: responsiveSize(12, scale),
@@ -834,13 +939,13 @@ const getStyles = (isSmallScreen: boolean, scale: number) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: responsiveSize(8, scale),
-    marginTop: responsiveSize(10, scale),
-    marginBottom: responsiveSize(2, scale),
+    gap: responsiveSize(10, scale),
+    marginTop: responsiveSize(12, scale),
+    marginBottom: responsiveSize(4, scale),
   },
   dot: {
-    width: responsiveSize(7, scale),
-    height: responsiveSize(7, scale),
+    width: responsiveSize(8, scale),
+    height: responsiveSize(8, scale),
     borderRadius: responsiveSize(4, scale),
   },
   actionCardsContainer: {
@@ -937,46 +1042,5 @@ const getStyles = (isSmallScreen: boolean, scale: number) => StyleSheet.create({
   notificationClose: {
     padding: responsiveSize(4, scale),
     marginLeft: responsiveSize(8, scale),
-  },
-  allPromosButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: responsiveSize(14, scale),
-    paddingHorizontal: responsiveSize(20, scale),
-    borderRadius: responsiveSize(14, scale),
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.1)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.11,
-    shadowRadius: 20,
-    elevation: 2,
-    gap: responsiveSize(8, scale),
-  },
-  allPromosText: { 
-    fontWeight: '600', 
-    fontSize: responsiveSize(16, scale),
-    letterSpacing: 0.3,
-  },
-  allPromosBtn: {
-    marginTop: responsiveSize(12, scale),
-    marginBottom: responsiveSize(12, scale),
-    borderRadius: responsiveSize(14, scale),
-    overflow: 'hidden',
-    shadowColor: '#FFEE00',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  buttonGradient: {
-    paddingVertical: responsiveSize(16, scale),
-    paddingHorizontal: responsiveSize(24, scale),
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });

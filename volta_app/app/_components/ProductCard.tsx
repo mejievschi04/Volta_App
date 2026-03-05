@@ -94,7 +94,7 @@ export default function ProductCard({ product, categorySlug, onAddToCart, varian
           ) : (
             <View style={styles.pricePlaceholder} />
           )}
-          <Text style={[styles.price, { color: colors.primaryButton }]}>{product.price} {formatCurrencyDisplay(product.currency)}</Text>
+          <Text style={[styles.price, { color: colors.textMuted }]}>{product.price} {formatCurrencyDisplay(product.currency)}</Text>
         </View>
         <TouchableOpacity
           style={[styles.addToCartBtn, { backgroundColor: colors.primaryButton || '#FFEE00' }]}

@@ -41,7 +41,7 @@ export default function BottomMenu() {
   const selectedCardId = user?.selected_discount_card_id;
   const selectedCard = activeCards.find((c) => c.id === selectedCardId) ?? activeCards[0];
   const hasRealCard = activeCards.length > 0 && selectedCard != null;
-  const displayPercent = selectedCard?.discount_value ?? selectedCardPercent ?? 10;
+  const displayPercent = hasRealCard ? (selectedCard?.discount_value ?? 0) : null;
   const displayCardCode = hasRealCard && user?.id != null
     ? `VOLTA-${user.id}-${selectedCard!.id}`.slice(0, 20)
     : '';
@@ -607,7 +607,7 @@ export default function BottomMenu() {
                 <Ionicons name="close" size={28} color={colors.text} />
               </TouchableOpacity>
               <View style={styles.barcodeOnlyContent}>
-                {hasRealCard && displayCardCode && displayBarcodeValue ? (
+                {hasRealCard && displayCardCode && displayBarcodeValue && displayPercent != null ? (
                   <>
                     <Text style={[styles.barcodeCodeLabel, { color: colors.textMuted }]}>
                       Reducere {displayPercent}%

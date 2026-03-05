@@ -639,6 +639,8 @@ class ApiClient {
     costOfDelivery?: number;
     orderProducts: Array<{ product_id: number; quantity: number; unit_price: number; total_price: number }>;
     lang?: string;
+    /** Doar cardul selectat din Profil – ID-ul cardului de reducere cu care se face comanda */
+    selectedDiscountCardId?: number | null;
   }): CreateOrderPayload {
     const payload: CreateOrderPayload = {
       user_id: p.userId,
@@ -664,6 +666,9 @@ class ApiClient {
     };
     if (p.deliveryType === 'pickup' && p.pickupAddressId != null) {
       payload.pickup_address_id = p.pickupAddressId;
+    }
+    if (p.selectedDiscountCardId != null) {
+      payload.selected_discount_card_id = p.selectedDiscountCardId;
     }
     return payload;
   }

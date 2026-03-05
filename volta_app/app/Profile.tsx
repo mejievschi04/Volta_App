@@ -91,25 +91,28 @@ const ProfileScreen = () => {
         return;
       }
       if (meData) {
-        let merged = { ...meData };
-        const hasCards = Array.isArray((meData as any).discount_cards) && (meData as any).discount_cards.length > 0;
-        if (!hasCards) {
-          const { data: cardsRes } = await apiClient.getUserDiscountCards(1);
-          const raw = cardsRes as any;
-          const cards = raw?.results ?? raw?.discount_cards ?? (Array.isArray(raw) ? raw : []);
-          const normalized = cards.map((c: any) => {
-            const pct = c.max_discount_percent != null ? Number(c.max_discount_percent) : c.discount_value;
-            const discount_value = (pct === 5 ? 5 : 10) as 5 | 10;
-            return {
-              id: c.id,
-              discount_value,
-              expires_at: c.expires_at ?? null,
-              barcode: c.barcode ?? c.code,
-            };
-          });
-          merged = { ...meData, discount_cards: normalized };
-        }
+        // Folosim doar discount_cards din getMe() – nu mai încărcăm lista din getUserDiscountCards,
+        // ca să nu apară multe carduri; utilizatorul vede doar cardurile pe care le-a adăugat (returnate de getMe).
+        const cardsFromMe = Array.isArray((meData as any).discount_cards) ? (meData as any).discount_cards : [];
+        const normalizedRaw = cardsFromMe.map((c: any) => {
+          const pct = c.max_discount_percent != null ? Number(c.max_discount_percent) : (c.discount_value != null ? Number(c.discount_value) : 10);
+          const discount_value = Math.max(0, Math.min(100, Math.round(pct)));
+          return {
+            id: c.id,
+            discount_value,
+            expires_at: c.expires_at ?? null,
+            barcode: c.barcode ?? c.code,
+          };
+        });
+        const seenIds = new Set<number>();
+        const normalized = normalizedRaw.filter((c: { id: number }) => {
+          if (seenIds.has(c.id)) return false;
+          seenIds.add(c.id);
+          return true;
+        });
+        const merged = { ...meData, discount_cards: normalized };
         setUserData(merged);
+        setUser(merged as any);
       } else if (user) {
         setUserData(user);
       }
@@ -357,18 +360,16 @@ const ProfileScreen = () => {
               { opacity: fadeAnim, overflow: 'visible' },
             ]}
           >
-            {/* Modern User Section */}
+            {/* User card */}
             {isDark ? (
               <Animated.View
                 style={[
                   responsiveStyles.userSection,
                   {
                     opacity: fadeAnim,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    borderRadius: 16,
                     backgroundColor: colors.surface,
-                    overflow: 'hidden',
+                    borderColor: colors.border,
+                    borderWidth: StyleSheet.hairlineWidth,
                   },
                 ]}
               >
@@ -385,7 +386,7 @@ const ProfileScreen = () => {
                     {fullName}
                   </Text>
                   <View style={responsiveStyles.phoneRow}>
-                    <Ionicons name="call-outline" size={16} color={colors.textMuted} />
+                    <Ionicons name="call-outline" size={18} color={colors.textMuted} />
                     <Text style={[responsiveStyles.userPhone, { color: colors.textMuted }]}>
                       {displayUserData?.telefon || user?.telefon || ''}
                     </Text>
@@ -398,31 +399,24 @@ const ProfileScreen = () => {
                   responsiveStyles.userSection,
                   {
                     opacity: fadeAnim,
-                    borderWidth: 1,
-                    borderColor: '#FFEE00',
-                    borderRadius: 16,
-                    overflow: 'hidden',
+                    backgroundColor: '#FFF',
+                    borderColor: 'rgba(0,0,0,0.08)',
+                    borderWidth: StyleSheet.hairlineWidth,
                   },
                 ]}
               >
-                <LinearGradient
-                  colors={['#FFEE00', '#FFEE00']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={StyleSheet.absoluteFill}
-                />
                 <View style={responsiveStyles.avatarContainer}>
-                  <View style={[responsiveStyles.avatarGradient, { backgroundColor: '#000', borderWidth: 1.5, borderColor: '#FFEE00' }]}>
+                  <View style={[responsiveStyles.avatarGradient, { backgroundColor: '#000', borderWidth: 2, borderColor: '#FFEE00' }]}>
                     <Text style={[responsiveStyles.avatarInitial, { color: '#FFEE00' }]}>{avatarInitial}</Text>
                   </View>
                 </View>
                 <View style={responsiveStyles.userInfo}>
-                  <Text style={[responsiveStyles.userName, { color: '#000' }]} numberOfLines={1}>
+                  <Text style={[responsiveStyles.userName, { color: '#1a1a1a' }]} numberOfLines={1}>
                     {fullName}
                   </Text>
                   <View style={responsiveStyles.phoneRow}>
-                    <Ionicons name="call-outline" size={16} color="#000" />
-                    <Text style={[responsiveStyles.userPhone, { color: '#000' }]}>
+                    <Ionicons name="call-outline" size={18} color="#666" />
+                    <Text style={[responsiveStyles.userPhone, { color: '#666' }]}>
                       {displayUserData?.telefon || user?.telefon || ''}
                     </Text>
                   </View>
@@ -435,8 +429,8 @@ const ProfileScreen = () => {
             style={[
               responsiveStyles.addCardButton,
               {
-                backgroundColor: isDark ? colors.surface : 'rgba(0,0,0,0.04)',
-                borderColor: isDark ? colors.border : colors.primaryButton,
+                backgroundColor: isDark ? colors.surface : '#F8F8F8',
+                borderColor: isDark ? colors.border : 'rgba(0,0,0,0.1)',
               },
             ]}
             onPress={openAddCardModal}
@@ -449,7 +443,7 @@ const ProfileScreen = () => {
 
           {/* Carduri reducere – aspect ca înainte; date din API, un singur card selectat pentru barcode */}
           {(() => {
-            const cards = (displayUserData as any)?.discount_cards as { id: number; discount_value: 5 | 10; expires_at: string | null; barcode?: string }[] | undefined;
+            const cards = (displayUserData as any)?.discount_cards as { id: number; discount_value: number; expires_at: string | null; barcode?: string }[] | undefined;
             const activeCards = Array.isArray(cards) ? cards.filter((c) => !c.expires_at || new Date(c.expires_at) > new Date()) : [];
             const selectedId = (displayUserData as any)?.selected_discount_card_id as number | null | undefined;
             const selectedCard = activeCards.find((c) => c.id === selectedId) || activeCards[0];
@@ -484,7 +478,7 @@ const ProfileScreen = () => {
                           cardCode={cardCodeDisplay}
                           barcodeValue={barcodeDisplay}
                           profileMode
-                          variant={card.discount_value === 5 ? 'secondary' : 'primary'}
+                          variant={card.discount_value <= 5 ? 'secondary' : 'primary'}
                           maxWidth={pageWidth - 16}
                         />
                         {isSelected ? (
@@ -501,8 +495,13 @@ const ProfileScreen = () => {
                               if (error) return;
                               const { data } = await apiClient.getMe();
                               if (data) {
-                                setUserData({ ...data, discount_cards: (displayUserData as any)?.discount_cards ?? data.discount_cards });
-                                setUser(data);
+                                const mergedUser = {
+                                  ...data,
+                                  discount_cards: (displayUserData as any)?.discount_cards ?? (data as any)?.discount_cards ?? [],
+                                  selected_discount_card_id: (data as any)?.selected_discount_card_id ?? card.id,
+                                };
+                                setUserData(mergedUser);
+                                setUser(mergedUser as any);
                                 setSelectedCardPercent(card.discount_value);
                               }
                             }}
@@ -537,8 +536,8 @@ const ProfileScreen = () => {
               style={[
                 responsiveStyles.actionButton,
                 {
-                  backgroundColor: isDark ? colors.surface : colors.surface,
-                  borderColor: isDark ? colors.border : colors.border,
+                  backgroundColor: isDark ? colors.surface : '#FFF',
+                  borderColor: isDark ? colors.border : 'rgba(0,0,0,0.08)',
                 },
               ]}
               onPress={() => router.push("/Notifications")}
@@ -550,18 +549,16 @@ const ProfileScreen = () => {
               <View
                 style={[
                   responsiveStyles.actionIconContainer,
-                  {
-                    backgroundColor: isDark ? '#000' : '#1a1a1a',
-                  },
+                  { backgroundColor: isDark ? '#1a1a1a' : '#1a1a1a' },
                 ]}
               >
                 <Ionicons
                   name="notifications-outline"
-                  size={responsiveSize(22, scale)}
+                  size={responsiveSize(20, scale)}
                   color={colors.primaryButton}
                 />
                 {unreadCount > 0 && (
-                  <View style={[responsiveStyles.badge, { borderColor: colors.surface }]}>
+                  <View style={[responsiveStyles.badge, { borderColor: isDark ? colors.surface : '#FFF' }]}>
                     <Text style={responsiveStyles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
                   </View>
                 )}
@@ -569,15 +566,15 @@ const ProfileScreen = () => {
               <Text style={[responsiveStyles.actionLabel, { color: colors.text }]} numberOfLines={1}>
                 Notificări
               </Text>
-              <Ionicons name="chevron-forward" size={responsiveSize(20, scale)} color={colors.textMuted} />
+              <Ionicons name="chevron-forward" size={responsiveSize(18, scale)} color={colors.textMuted} />
             </TouchableOpacity>
 
             <TouchableOpacity
               style={[
                 responsiveStyles.actionButton,
                 {
-                  backgroundColor: isDark ? colors.surface : colors.surface,
-                  borderColor: isDark ? colors.border : colors.border,
+                  backgroundColor: isDark ? colors.surface : '#FFF',
+                  borderColor: isDark ? colors.border : 'rgba(0,0,0,0.08)',
                 },
               ]}
               onPress={() => router.push("/Settings")}
@@ -589,21 +586,19 @@ const ProfileScreen = () => {
               <View
                 style={[
                   responsiveStyles.actionIconContainer,
-                  {
-                    backgroundColor: isDark ? '#000' : '#1a1a1a',
-                  },
+                  { backgroundColor: isDark ? '#1a1a1a' : '#1a1a1a' },
                 ]}
               >
                 <Ionicons
                   name="settings-outline"
-                  size={responsiveSize(22, scale)}
+                  size={responsiveSize(20, scale)}
                   color={colors.primaryButton}
                 />
               </View>
               <Text style={[responsiveStyles.actionLabel, { color: colors.text }]} numberOfLines={1}>
                 Setări
               </Text>
-              <Ionicons name="chevron-forward" size={responsiveSize(20, scale)} color={colors.textMuted} />
+              <Ionicons name="chevron-forward" size={responsiveSize(18, scale)} color={colors.textMuted} />
             </TouchableOpacity>
           </View>
 
@@ -715,25 +710,33 @@ const ProfileScreen = () => {
 export default ProfileScreen;
 
 // Create responsive styles function
+const PROFILE_PADDING_H = 20;
 const getStyles = (isSmallScreen: boolean, scale: number) => StyleSheet.create({
-  container: { 
+  container: {
     flex: 1,
   },
   header: {
-    paddingHorizontal: responsiveWidth(5),
-    paddingTop: responsiveSize(12, scale),
-    paddingBottom: responsiveSize(12, scale),
+    paddingHorizontal: responsiveSize(PROFILE_PADDING_H, scale),
+    paddingTop: responsiveSize(16, scale),
+    paddingBottom: responsiveSize(8, scale),
   },
   userSection: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: responsiveWidth(5),
-    paddingVertical: responsiveSize(16, scale),
-    marginBottom: responsiveSize(16, scale),
-    marginHorizontal: 0,
-    width: '100%',
+    paddingHorizontal: responsiveSize(PROFILE_PADDING_H, scale),
+    paddingVertical: responsiveSize(20, scale),
+    marginBottom: responsiveSize(20, scale),
+    marginHorizontal: responsiveSize(PROFILE_PADDING_H, scale),
+    width: undefined,
+    alignSelf: 'stretch',
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 4,
   },
-  title: { 
+  title: {
     fontSize: isSmallScreen ? responsiveSize(28, scale) : responsiveSize(32, scale),
     fontWeight: '800',
     marginBottom: responsiveSize(4, scale),
@@ -746,8 +749,9 @@ const getStyles = (isSmallScreen: boolean, scale: number) => StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingTop: 0,
-    paddingBottom: responsiveSize(70, scale),
+    paddingTop: responsiveSize(8, scale),
+    paddingBottom: responsiveSize(80, scale),
+    paddingHorizontal: 0,
   },
   content: {
     width: '100%',
@@ -762,78 +766,80 @@ const getStyles = (isSmallScreen: boolean, scale: number) => StyleSheet.create({
     fontSize: responsiveSize(14, scale),
   },
   avatarContainer: {
-    marginRight: responsiveSize(16, scale),
+    marginRight: responsiveSize(18, scale),
   },
   avatarGradient: {
-    width: isSmallScreen ? responsiveSize(70, scale) : responsiveSize(75, scale),
-    height: isSmallScreen ? responsiveSize(70, scale) : responsiveSize(75, scale),
-    borderRadius: isSmallScreen ? responsiveSize(35, scale) : responsiveSize(37.5, scale),
+    width: isSmallScreen ? responsiveSize(64, scale) : responsiveSize(72, scale),
+    height: isSmallScreen ? responsiveSize(64, scale) : responsiveSize(72, scale),
+    borderRadius: isSmallScreen ? responsiveSize(20, scale) : responsiveSize(22, scale),
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: '#FFEE00',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
     shadowRadius: 12,
-    elevation: 8,
+    elevation: 6,
   },
-  avatarInitial: { 
-    fontSize: isSmallScreen ? responsiveSize(28, scale) : responsiveSize(30, scale), 
+  avatarInitial: {
+    fontSize: isSmallScreen ? responsiveSize(26, scale) : responsiveSize(28, scale),
     fontWeight: "700",
     color: '#000',
   },
-  userInfo: { 
+  userInfo: {
     flex: 1,
+    minWidth: 0,
   },
-  userName: { 
-    fontSize: isSmallScreen ? responsiveSize(20, scale) : responsiveSize(24, scale), 
-    fontWeight: "700", 
-    marginBottom: responsiveSize(4, scale),
-    letterSpacing: 0.3,
+  userName: {
+    fontSize: isSmallScreen ? responsiveSize(19, scale) : responsiveSize(22, scale),
+    fontWeight: "700",
+    marginBottom: responsiveSize(6, scale),
+    letterSpacing: 0.2,
   },
   phoneRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: responsiveSize(6, scale),
+    gap: responsiveSize(8, scale),
   },
-  userPhone: { 
-    fontSize: isSmallScreen ? responsiveSize(15, scale) : responsiveSize(16, scale),
+  userPhone: {
+    fontSize: isSmallScreen ? responsiveSize(14, scale) : responsiveSize(15, scale),
   },
   cardContainer: {
-    marginHorizontal: 0,
-    marginBottom: 16,
+    marginHorizontal: responsiveSize(PROFILE_PADDING_H, scale),
+    marginBottom: responsiveSize(20, scale),
     paddingHorizontal: 0,
-    width: '100%',
+    width: undefined,
+    alignSelf: 'stretch',
     alignItems: 'center',
   },
   actionsSection: {
-    paddingHorizontal: 0,
-    marginBottom: responsiveSize(20, scale),
-    gap: responsiveSize(10, scale),
+    paddingHorizontal: responsiveSize(PROFILE_PADDING_H, scale),
+    marginBottom: responsiveSize(24, scale),
+    gap: responsiveSize(12, scale),
     width: '100%',
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: responsiveSize(14, scale),
-    paddingHorizontal: responsiveSize(16, scale),
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: responsiveSize(10, scale),
+    paddingVertical: responsiveSize(12, scale),
+    paddingHorizontal: responsiveSize(14, scale),
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: 0,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
     elevation: 2,
     width: '100%',
-    minHeight: 56,
+    minHeight: 52,
   },
   actionIconContainer: {
-    width: responsiveSize(44, scale),
-    height: responsiveSize(44, scale),
+    width: responsiveSize(40, scale),
+    height: responsiveSize(40, scale),
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: responsiveSize(14, scale),
+    marginRight: responsiveSize(12, scale),
     position: 'relative',
   },
   badge: {
@@ -844,7 +850,7 @@ const getStyles = (isSmallScreen: boolean, scale: number) => StyleSheet.create({
     borderRadius: 10,
     minWidth: 20,
     height: 20,
-    paddingHorizontal: 6,
+    paddingHorizontal: 5,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
@@ -857,38 +863,38 @@ const getStyles = (isSmallScreen: boolean, scale: number) => StyleSheet.create({
   },
   actionLabel: {
     flex: 1,
-    fontSize: isSmallScreen ? responsiveSize(16, scale) : responsiveSize(17, scale),
+    fontSize: isSmallScreen ? responsiveSize(15, scale) : responsiveSize(16, scale),
     fontWeight: '600',
   },
   logoutBtn: {
-    marginHorizontal: 0,
-    borderRadius: 0,
+    marginHorizontal: responsiveSize(PROFILE_PADDING_H, scale),
+    borderRadius: 16,
     overflow: 'hidden',
-    shadowColor: '#FFEE00',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0,
-    shadowRadius: 0,
-    elevation: 0,
-    width: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+    width: undefined,
+    alignSelf: 'stretch',
   },
   logoutGradient: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: responsiveSize(14, scale),
+    paddingVertical: responsiveSize(16, scale),
     paddingHorizontal: responsiveSize(24, scale),
     gap: responsiveSize(10, scale),
   },
-  logoutText: { 
-    color: "#000", 
-    fontSize: isSmallScreen ? responsiveSize(15, scale) : responsiveSize(16, scale), 
+  logoutText: {
+    color: "#000",
+    fontSize: isSmallScreen ? responsiveSize(15, scale) : responsiveSize(16, scale),
     fontWeight: "700",
     letterSpacing: 0.5,
   },
-  // Card swipe section – responsive
   cardsSwipeContainer: {
     width: '100%',
-    marginBottom: responsiveSize(20, scale),
+    marginBottom: responsiveSize(24, scale),
     alignItems: 'center',
   },
   cardsSwipeContent: {
@@ -898,15 +904,15 @@ const getStyles = (isSmallScreen: boolean, scale: number) => StyleSheet.create({
   cardPage: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: responsiveSize(16, scale),
+    paddingVertical: responsiveSize(20, scale),
     paddingHorizontal: 0,
   },
   cardDots: {
     flexDirection: 'row' as const,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: responsiveSize(8, scale),
-    marginTop: responsiveSize(8, scale),
+    gap: responsiveSize(10, scale),
+    marginTop: responsiveSize(12, scale),
   },
   cardDot: {
     width: responsiveSize(8, scale),
@@ -923,31 +929,36 @@ const getStyles = (isSmallScreen: boolean, scale: number) => StyleSheet.create({
     flexDirection: 'row' as const,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: responsiveSize(6, scale),
-    marginTop: responsiveSize(10, scale),
-    paddingVertical: responsiveSize(8, scale),
-    paddingHorizontal: responsiveSize(16, scale),
-    borderRadius: responsiveSize(20, scale),
+    gap: responsiveSize(8, scale),
+    marginTop: responsiveSize(12, scale),
+    paddingVertical: responsiveSize(10, scale),
+    paddingHorizontal: responsiveSize(20, scale),
+    borderRadius: responsiveSize(24, scale),
     borderWidth: 1.5,
   },
   cardSelectButtonSelected: {
     opacity: 0.9,
   },
   cardSelectButtonText: {
-    fontSize: responsiveSize(13, scale),
+    fontSize: responsiveSize(14, scale),
     fontWeight: '600' as const,
   },
   addCardButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: responsiveSize(14, scale),
-    paddingHorizontal: responsiveSize(16, scale),
-    borderRadius: 12,
+    paddingVertical: responsiveSize(16, scale),
+    paddingHorizontal: responsiveSize(20, scale),
+    borderRadius: 16,
     borderWidth: 1.5,
-    marginBottom: responsiveSize(16, scale),
-    marginHorizontal: responsiveWidth(5),
-    gap: responsiveSize(10, scale),
+    marginBottom: responsiveSize(20, scale),
+    marginHorizontal: responsiveSize(PROFILE_PADDING_H, scale),
+    gap: responsiveSize(12, scale),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   addCardButtonText: {
     fontSize: responsiveSize(16, scale),

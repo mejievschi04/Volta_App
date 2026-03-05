@@ -14,6 +14,7 @@ import {
   Platform,
   type ViewStyle,
   type TextStyle,
+  type ImageStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -144,6 +145,7 @@ export default function Cos() {
         costOfDelivery: 0,
         orderProducts,
         lang: 'ro',
+        selectedDiscountCardId: user?.selected_discount_card_id ?? undefined,
       });
       const res = await apiClient.createOrder(payload);
       if (res.error) {
@@ -171,8 +173,8 @@ export default function Cos() {
     <Screen>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={0}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
       >
         <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={[styles.header, { borderBottomColor: colors.border, backgroundColor: isDark ? 'rgba(0,0,0,0.2)' : colors.surface }]}>
@@ -224,6 +226,7 @@ export default function Cos() {
           ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
           refreshControl={
             items.length > 0 ? (
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primaryButton} />
@@ -579,7 +582,7 @@ function getStyles(isSmallScreen: boolean, scale: number): {
   scroll: ViewStyle;
   card: ViewStyle;
   imageWrap: ViewStyle;
-  productImage: ViewStyle;
+  productImage: ImageStyle;
   body: ViewStyle;
   productName: TextStyle;
   priceLine: TextStyle;
@@ -605,8 +608,8 @@ function getStyles(isSmallScreen: boolean, scale: number): {
   section: ViewStyle;
   sectionTitle: TextStyle;
   label: TextStyle;
-  input: ViewStyle;
-  inputMultiline: ViewStyle;
+  input: TextStyle;
+  inputMultiline: TextStyle;
   rowChannels: ViewStyle;
   channelBtn: ViewStyle;
   channelLabel: TextStyle;

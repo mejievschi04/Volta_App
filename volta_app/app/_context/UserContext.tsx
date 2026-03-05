@@ -13,8 +13,9 @@ export interface UserContextValue {
   token: string | null;
   setToken: (t: string | null) => Promise<void>;
   isLoading: boolean;
-  selectedCardPercent: 10 | 5;
-  setSelectedCardPercent: (p: 10 | 5) => void;
+  /** Procent reducere al cardului selectat (moștenit din card), 0 dacă nu e niciun card */
+  selectedCardPercent: number;
+  setSelectedCardPercent: (p: number) => void;
 }
 
 export const UserContext = createContext<UserContextValue>({
@@ -22,7 +23,7 @@ export const UserContext = createContext<UserContextValue>({
   setUser: async () => {},
   token: null,
   setToken: async () => {},
-  selectedCardPercent: 10,
+  selectedCardPercent: 0,
   setSelectedCardPercent: () => {},
   isLoading: true,
 });
@@ -31,7 +32,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUserState] = useState<UserOrNull>(null);
   const [token, setTokenState] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedCardPercent, setSelectedCardPercent] = useState<10 | 5>(10);
+  const [selectedCardPercent, setSelectedCardPercent] = useState<number>(0);
 
   useEffect(() => {
     const loadAuth = async () => {
@@ -43,11 +44,14 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (userData) {
           const parsedUser = JSON.parse(userData) as User;
           setUserState(parsedUser);
-          // Sincronizează procentul cardului selectat din datele user-ului
           const cards = parsedUser.discount_cards ?? [];
           const selectedId = parsedUser.selected_discount_card_id;
           const selected = cards.find((c) => c.id === selectedId) ?? cards[0];
-          if (selected) setSelectedCardPercent(selected.discount_value);
+          if (selected) {
+            setSelectedCardPercent(selected.discount_value);
+          } else {
+            setSelectedCardPercent(0);
+          }
         }
         if (tokenData) {
           setTokenState(tokenData);
@@ -79,11 +83,14 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const setUserWithStorage = async (userData: UserOrNull) => {
     setUserState(userData);
     if (userData) {
-      // Sincronizează procentul cardului selectat
       const cards = userData.discount_cards ?? [];
       const selectedId = userData.selected_discount_card_id;
       const selected = cards.find((c) => c.id === selectedId) ?? cards[0];
-      if (selected) setSelectedCardPercent(selected.discount_value);
+      if (selected) {
+        setSelectedCardPercent(selected.discount_value);
+      } else {
+        setSelectedCardPercent(0);
+      }
       try {
         await AsyncStorage.setItem(USER_KEY, JSON.stringify(userData));
       } catch (error) {

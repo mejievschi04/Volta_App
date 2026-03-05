@@ -1,5 +1,17 @@
 import React, { useState, useContext, useEffect, useMemo } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, type ViewStyle, type TextStyle } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  type ViewStyle,
+  type TextStyle,
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -63,62 +75,75 @@ export default function EditProfil() {
   };
 
   return (
-    <View style={[responsiveStyles.container, { backgroundColor: colors.background, paddingBottom: bottomInsetForMenu + 24 }]}>
-      <Text style={[responsiveStyles.title, { color: colors.text }]}>Editează Profilul</Text>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
+    >
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: bottomInsetForMenu + 24 }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+      >
+        <View style={[responsiveStyles.container, { backgroundColor: colors.background }]}>
+          <Text style={[responsiveStyles.title, { color: colors.text }]}>Editează Profilul</Text>
 
-      <View style={responsiveStyles.form}>
-        <Text style={[responsiveStyles.label, { color: colors.text }]}>Nume</Text>
-        <TextInput
-          style={[responsiveStyles.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.surface }]}
-          value={name}
-          onChangeText={setName}
-          placeholder="Introdu numele"
-          placeholderTextColor={colors.textMuted}
-        />
+          <View style={responsiveStyles.form}>
+            <Text style={[responsiveStyles.label, { color: colors.text }]}>Nume</Text>
+            <TextInput
+              style={[responsiveStyles.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.surface }]}
+              value={name}
+              onChangeText={setName}
+              placeholder="Introdu numele"
+              placeholderTextColor={colors.textMuted}
+            />
 
-        <Text style={[responsiveStyles.label, { color: colors.text }]}>Email</Text>
-        <TextInput
-          style={[responsiveStyles.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.surface }]}
-          value={email}
-          onChangeText={setEmail}
-          placeholder="Introdu emailul"
-          placeholderTextColor={colors.textMuted}
-          keyboardType="email-address"
-        />
+            <Text style={[responsiveStyles.label, { color: colors.text }]}>Email</Text>
+            <TextInput
+              style={[responsiveStyles.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.surface }]}
+              value={email}
+              onChangeText={setEmail}
+              placeholder="Introdu emailul"
+              placeholderTextColor={colors.textMuted}
+              keyboardType="email-address"
+            />
 
-        <Text style={[responsiveStyles.label, { color: colors.text }]}>Parolă nouă</Text>
-        <TextInput
-          style={[responsiveStyles.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.surface }]}
-          value={password}
-          onChangeText={setPassword}
-          placeholder="Lasă gol dacă nu vrei să o schimbi"
-          placeholderTextColor={colors.textMuted}
-          secureTextEntry
-        />
+            <Text style={[responsiveStyles.label, { color: colors.text }]}>Parolă nouă</Text>
+            <TextInput
+              style={[responsiveStyles.input, { borderColor: colors.border, color: colors.text, backgroundColor: colors.surface }]}
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Lasă gol dacă nu vrei să o schimbi"
+              placeholderTextColor={colors.textMuted}
+              secureTextEntry
+            />
 
-        <TouchableOpacity style={[responsiveStyles.saveBtn, { backgroundColor: colors.primaryButton }]} onPress={handleSave}>
-          <Ionicons name="save-outline" size={20} color="#000" />
-          <Text style={responsiveStyles.saveText}>Salvează</Text>
-        </TouchableOpacity>
+            <TouchableOpacity style={[responsiveStyles.saveBtn, { backgroundColor: colors.primaryButton }]} onPress={handleSave}>
+              <Ionicons name="save-outline" size={20} color="#000" />
+              <Text style={responsiveStyles.saveText}>Salvează</Text>
+            </TouchableOpacity>
 
-        {/* Back Button */}
-        <TouchableOpacity
-          onPress={() => router.back()}
-          activeOpacity={0.8}
-          style={responsiveStyles.backButtonWrapper}
-        >
-          <LinearGradient
-            colors={['#FFEE00', '#FFEE00']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={responsiveStyles.backButton}
-          >
-            <Ionicons name="arrow-back" size={18} color="#000" />
-            <Text style={responsiveStyles.backButtonText}>Înapoi</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
-    </View>
+            {/* Back Button */}
+            <TouchableOpacity
+              onPress={() => router.back()}
+              activeOpacity={0.8}
+              style={responsiveStyles.backButtonWrapper}
+            >
+              <LinearGradient
+                colors={['#FFEE00', '#FFEE00']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={responsiveStyles.backButton}
+              >
+                <Ionicons name="arrow-back" size={18} color="#000" />
+                <Text style={responsiveStyles.backButtonText}>Înapoi</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
